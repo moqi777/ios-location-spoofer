@@ -1,0 +1,22 @@
+README.md
+  ai_agent 191-192
+location-picker/server.js
+  s_7a9fa0b967f219::t_0be03c80c254e0 624-658,662-666,734-737
+  s_7a9fa0b967f219::t_ac2ae31f2ac9d8 134-178,223-259
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "7a5505b2216b1df642b004b3f9d7f7432b96e354",
+  "prompts": {},
+  "sessions": {
+    "s_7a9fa0b967f219": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15bf7c02-818b-4679-af94-9ad9e84534e1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "moqing <moqing@tsign.cn>"
+    }
+  }
+}
