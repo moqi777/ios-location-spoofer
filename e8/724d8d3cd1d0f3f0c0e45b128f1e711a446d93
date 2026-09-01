@@ -1,0 +1,21 @@
+location-picker/admin.js
+  s_7a9fa0b967f219::t_8dd86ba3d99d05 69-72,201,204-208
+location-picker/admin-page.js
+  s_7a9fa0b967f219::t_f2bf1f7e8fd0c8 145-146,244-248,258-259
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "e8724d8d3cd1d0f3f0c0e45b128f1e711a446d93",
+  "prompts": {},
+  "sessions": {
+    "s_7a9fa0b967f219": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15bf7c02-818b-4679-af94-9ad9e84534e1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "moqing <moqing@tsign.cn>"
+    }
+  }
+}
