@@ -122,9 +122,11 @@ const PAGE = `<!doctype html>
       <h2>导出当前表</h2>
       <div class="row">
         <input type="date" id="e-from"><span class="muted">→</span><input type="date" id="e-to">
+        <select id="e-token"><option value="">全部 Token</option></select>
         <button class="act" id="e-go">导出 .csv.gz</button>
       </div>
-      <div class="muted" style="margin-top:6px">留空 = 全部。文件流式生成，多大都不占内存。</div>
+      <div class="muted" style="margin-top:6px">留空 = 全部。文件流式生成，多大都不占内存。<br>
+        导出的是访问日志（含 IP、User-Agent、搜过的地名），不含 token 本身和改点历史。</div>
     </div>
     <div class="card">
       <h2>归档文件</h2>
@@ -228,11 +230,17 @@ function mask(t){ return t.slice(0,6) + "…" + t.slice(-4); }
 // ---------- Tab 1：Token 管理 ----------
 function renderTokens(list){
   tokensCache = list;
-  var sel = $("f-token");
-  sel.innerHTML = '<option value="">全部 Token</option>' +
+  // 日志页的筛选和归档页的导出共用同一份选项
+  var opts = '<option value="">全部 Token</option>' +
     list.map(function(t){
       return '<option value="' + t.id + '">' + esc(t.label || mask(t.token)) + '</option>';
     }).join("") + '<option value="0">（无效 / 已删除的 token）</option>';
+  ["f-token", "e-token"].forEach(function(id){
+    var el = $(id);
+    var keep = el.value;            // 重新加载 token 列表时别把用户选好的筛选清掉
+    el.innerHTML = opts;
+    el.value = keep;
+  });
 
   if(!list.length){ $("tokenlist").innerHTML = '<div class="muted">还没有 token，点上面生成一个。</div>'; return; }
 
@@ -588,6 +596,7 @@ $("e-go").addEventListener("click", function(){
   var q = [];
   if($("e-from").value) q.push("from=" + $("e-from").value);
   if($("e-to").value) q.push("to=" + $("e-to").value);
+  if($("e-token").value !== "") q.push("token_id=" + $("e-token").value);
   dl("/admin/api/export" + (q.length ? "?" + q.join("&") : ""));
   toast("开始下载…");
 });

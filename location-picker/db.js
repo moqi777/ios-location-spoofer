@@ -557,12 +557,21 @@ function archiveFile(mk) {
 }
 
 // 取一批日志（id 游标翻页），归档和导出共用
-function fetchLogBatch(fromMs, toMs, afterId, limit) {
+// tokenId 传 null/"" = 不筛。注意 0 是有效值（无效或已删除 token 的日志都挂在 0 上），
+// 所以判断只能用 == null，不能用 !tokenId。
+function fetchLogBatch(fromMs, toMs, afterId, limit, tokenId) {
+  if (tokenId == null || tokenId === "") {
+    return prep(
+      "SELECT l.id, l.ts, l.token_id, l.path, l.status, l.ip, l.ua, l.detail, t.label" +
+      " FROM logs l LEFT JOIN tokens t ON t.id = l.token_id" +
+      " WHERE l.ts >= ? AND l.ts < ? AND l.id > ? ORDER BY l.id LIMIT ?"
+    ).all(fromMs, toMs, afterId, limit);
+  }
   return prep(
     "SELECT l.id, l.ts, l.token_id, l.path, l.status, l.ip, l.ua, l.detail, t.label" +
     " FROM logs l LEFT JOIN tokens t ON t.id = l.token_id" +
-    " WHERE l.ts >= ? AND l.ts < ? AND l.id > ? ORDER BY l.id LIMIT ?"
-  ).all(fromMs, toMs, afterId, limit);
+    " WHERE l.token_id = ? AND l.ts >= ? AND l.ts < ? AND l.id > ? ORDER BY l.id LIMIT ?"
+  ).all(Number(tokenId), fromMs, toMs, afterId, limit);
 }
 
 function rowsToCsv(rows) {

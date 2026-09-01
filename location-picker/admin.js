@@ -116,7 +116,7 @@ function streamArchive(res, full, name) {
 //      顺便还能压成单个 gzip 块，压缩率更好
 const EXPORT_BATCH = 1000;
 
-function streamExport(res, fromMs, toMs, filename) {
+function streamExport(res, fromMs, toMs, filename, tokenId) {
   res.writeHead(200, {
     "Content-Type": "application/gzip",
     "Content-Disposition": 'attachment; filename="' + filename + '"',
@@ -133,7 +133,7 @@ function streamExport(res, fromMs, toMs, filename) {
     if (res.destroyed) return;
     var rows;
     try {
-      rows = db.fetchLogBatch(fromMs, toMs, afterId, EXPORT_BATCH);
+      rows = db.fetchLogBatch(fromMs, toMs, afterId, EXPORT_BATCH, tokenId);
     } catch (e) {
       return gz.destroy();
     }
@@ -316,8 +316,19 @@ function handle(req, res, url) {
     if (!isFinite(fromMs) || !isFinite(toMs) || toMs <= fromMs) {
       return json(res, 400, { error: "bad range" }), true;
     }
+    // token_id 允许是 0（无效 / 已删除 token 的日志），所以只有 null 和空串才算「不筛」
+    const rawTid = url.searchParams.get("token_id");
+    var tokenId = null;
+    if (rawTid !== null && rawTid !== "") {
+      tokenId = Number(rawTid);
+      if (!Number.isInteger(tokenId) || tokenId < 0) {
+        return json(res, 400, { error: "bad token_id" }), true;
+      }
+    }
     streamExport(res, fromMs, toMs,
-      "logs-" + (from || "all") + "_" + (to || "now") + ".csv.gz");
+      "logs-" + (from || "all") + "_" + (to || "now") +
+      (tokenId === null ? "" : "-token" + tokenId) + ".csv.gz",
+      tokenId);
     return true;
   }
 
