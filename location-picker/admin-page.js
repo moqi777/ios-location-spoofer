@@ -142,6 +142,8 @@ const PAGE = `<!doctype html>
 <script>
 var ADMIN = new URLSearchParams(location.search).get("token") || "";
 var tokensCache = [];
+var moduleTpl = "";   // 模块模板，token 那段是 __TOKEN__，复制时才替换
+var originUrl = "";
 
 function $(id){ return document.getElementById(id); }
 // 单引号和反引号也要转 —— 当前所有插值点用的都是双引号属性，不转也没事，
@@ -239,7 +241,11 @@ function renderTokens(list){
 }
 
 function loadTokens(){
-  return api("/admin/api/tokens").then(function(d){ renderTokens(d.tokens); });
+  return api("/admin/api/tokens").then(function(d){
+    moduleTpl = d.moduleTemplate || "";
+    originUrl = d.origin || "";
+    renderTokens(d.tokens);
+  });
 }
 
 $("tokenlist").addEventListener("click", function(ev){
@@ -249,8 +255,8 @@ $("tokenlist").addEventListener("click", function(ev){
   var t = tokensCache.filter(function(x){ return x.id === id; })[0];
   if(!t) return;
   var a = btn.dataset.a;
-  if(a === "mod") return copy(t.moduleText, "模块已复制，去小火箭粘贴");
-  if(a === "url") return copy(t.pickerUrl, "选点链接已复制");
+  if(a === "mod") return copy(moduleTpl.split("__TOKEN__").join(t.token), "模块已复制，去小火箭粘贴");
+  if(a === "url") return copy(originUrl + "/?token=" + t.token, "选点链接已复制");
   if(a === "label"){
     var v = prompt("备注名", t.label || "");
     if(v === null) return;

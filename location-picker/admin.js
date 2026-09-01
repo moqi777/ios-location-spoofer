@@ -66,6 +66,10 @@ const PATTERN =
   "^https?:\\/\\/(?:gs-loc(?:-cn)?\\.apple\\.com|gsp-ssl\\.ls\\.apple\\.com|" +
   "bluedot\\.is\\.autonavi\\.com(?:\\.gds\\.alibabadns\\.com)?)\\/clls\\/wloc";
 
+// 模块文本里除了 token 那一段，每个用户拿到的完全一样。列表接口只发一份模板，
+// 前端拿到后把这个占位符换成自己的 token —— 别给每行都塞一份 600 字节的重复文字。
+const TOKEN_MARK = "__TOKEN__";
+
 function buildModule(origin, token) {
   return [
     "#!name=iOS Location Spoofer",
@@ -194,12 +198,14 @@ function handle(req, res, url) {
         location: loc,
         todayLoc: h.loc_hits || 0,
         todaySet: h.set_hits || 0,
-        todayErr: h.errors || 0,
-        moduleText: buildModule(origin, t.token),
-        pickerUrl: buildPickerUrl(origin, t.token)
+        todayErr: h.errors || 0
       };
     });
-    return json(res, 200, { origin: origin, tokens: rows }), true;
+    return json(res, 200, {
+      origin: origin,
+      moduleTemplate: buildModule(origin, TOKEN_MARK),
+      tokens: rows
+    }), true;
   }
 
   // ---- 新建 token ----
