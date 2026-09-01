@@ -66,6 +66,17 @@ try {
   if (bootPrune.unref) bootPrune.unref();
   var pruneTimer = setInterval(runPrune, 6 * 3600 * 1000);
   if (pruneTimer.unref) pruneTimer.unref();
+
+  // 补历史地址。同样不能挡启动：它是串行 + 每条隔 1 秒的，200 条要跑三分多钟。
+  function runBackfill() {
+    backfillHistoryAddresses(200).catch(function (e) {
+      console.log("补历史地址异常：" + e.message);
+    });
+  }
+  var bootBackfill = setTimeout(runBackfill, 60000);
+  if (bootBackfill.unref) bootBackfill.unref();
+  var backfillTimer = setInterval(runBackfill, 6 * 3600 * 1000);
+  if (backfillTimer.unref) backfillTimer.unref();
 } catch (e) {
   console.error("启动失败：无法打开数据库 " + DATA_DIR + "/app.db —— " + e.message);
   process.exit(1);
@@ -243,6 +254,37 @@ function resolveAddress(tokenId, lat, lng) {
       addrRunning.delete(tokenId);
     }
   })();
+}
+
+// 历史表里地址为空的行，慢慢补。两个来源：
+//   1) v3 迁移从 /set 日志回填的老记录 —— 当时压根没解析过地址；
+//   2) 保存时逆解失败的（上游超时、502），resolveAddress 不重试。
+// 不能一口气并发打上游：高德个人 key 有 QPS 限制，Nominatim 更是明确要求 1 秒 1 次。
+// 所以严格串行 + 每条之间隔 1 秒，跑完这批就停，剩下的等下一轮。
+var backfilling = false;
+
+async function backfillHistoryAddresses(max) {
+  if (backfilling) return;
+  backfilling = true;
+  var done = 0;
+  try {
+    const rows = db.historyMissingAddress(max || 200);
+    for (var i = 0; i < rows.length; i += 1) {
+      const r = rows[i];
+      var addr = "";
+      try {
+        if (!outOfChina(r.latitude, r.longitude)) addr = await amapAddress(r.latitude, r.longitude);
+        if (!addr) addr = await osmAddress(r.latitude, r.longitude);
+      } catch (e) { /* 单条失败就跳过，下一轮再试 */ }
+      if (addr) {
+        try { if (db.setHistoryAddress(r.id, addr)) done += 1; } catch (e) { /* 库出问题时静默 */ }
+      }
+      await new Promise(function (r2) { setTimeout(r2, 1000); });
+    }
+    if (done) console.log("补齐了 " + done + " 条历史地址");
+  } finally {
+    backfilling = false;
+  }
 }
 
 function proxyUpstream(targetUrl, res, headers, timeoutMs) {

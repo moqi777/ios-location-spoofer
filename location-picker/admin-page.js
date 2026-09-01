@@ -33,6 +33,23 @@ const PAGE = `<!doctype html>
   .grow{flex:1;min-width:0}
   .muted{color:var(--dim);font-size:13px}
   .addr{font-size:14px;margin:2px 0 4px;line-height:1.4}
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;
+    display:none;align-items:flex-end;justify-content:center}
+  .mask.on{display:flex}
+  .modal{background:var(--card);width:100%;max-width:560px;max-height:80vh;
+    border-radius:14px 14px 0 0;display:flex;flex-direction:column}
+  @media (min-width:600px){ .mask{align-items:center} .modal{border-radius:14px} }
+  .modal>header{position:static;border-bottom:1px solid var(--line);
+    padding:12px;display:flex;align-items:center;gap:8px;background:var(--card)}
+  .modal>header b{flex:1;min-width:0;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .modal .body{overflow-y:auto;padding:12px}
+  .hitem{border-left:2px solid var(--line);padding:0 0 14px 12px;margin-left:4px;position:relative}
+  .hitem:last-child{padding-bottom:0}
+  .hitem::before{content:"";position:absolute;left:-5px;top:4px;width:8px;height:8px;
+    border-radius:50%;background:var(--dim)}
+  .hitem.now::before{background:var(--green)}
+  .hitem .ht{font-size:12px;color:var(--dim)}
+  .hitem .ha{font-size:14px;line-height:1.4;margin:1px 0}
   .card.err{border-color:#ff3b30;color:#ff3b30}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all}
   .badge{font-size:11px;padding:2px 7px;border-radius:99px;font-weight:600;white-space:nowrap}
@@ -138,6 +155,12 @@ const PAGE = `<!doctype html>
     <div id="logs"><div class="muted">选择条件后查询</div></div>
   </div>
 </main>
+<div class="mask" id="hist-mask">
+  <div class="modal">
+    <header><b id="hist-title">改点历史</b><button class="act s" id="hist-close">关闭</button></header>
+    <div class="body" id="hist-body"></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <script>
 var ADMIN = new URLSearchParams(location.search).get("token") || "";
@@ -233,6 +256,7 @@ function renderTokens(list){
       '<div class="row" style="margin-top:10px">' +
         '<button class="act" data-a="mod">复制模块</button>' +
         '<button class="act p" data-a="url">复制链接</button>' +
+        '<button class="act s" data-a="hist">历史</button>' +
         '<button class="act s" data-a="label">改备注</button>' +
         '<button class="act s" data-a="toggle">' + (live ? "停用" : "启用") + '</button>' +
         '<button class="act r" data-a="del">删除</button>' +
@@ -257,6 +281,7 @@ $("tokenlist").addEventListener("click", function(ev){
   var a = btn.dataset.a;
   if(a === "mod") return copy(moduleTpl.split("__TOKEN__").join(t.token), "模块已复制，去小火箭粘贴");
   if(a === "url") return copy(originUrl + "/?token=" + t.token, "选点链接已复制");
+  if(a === "hist") return openHistory(t);
   if(a === "label"){
     var v = prompt("备注名", t.label || "");
     if(v === null) return;
@@ -275,6 +300,39 @@ $("tokenlist").addEventListener("click", function(ev){
       .then(loadTokens).then(function(){ toast("已删除"); });
   }
 });
+
+// ---------- 改点历史弹窗 ----------
+function closeHistory(){ $("hist-mask").classList.remove("on"); }
+$("hist-close").addEventListener("click", closeHistory);
+$("hist-mask").addEventListener("click", function(ev){ if(ev.target === this) closeHistory(); });
+document.addEventListener("keydown", function(ev){ if(ev.key === "Escape") closeHistory(); });
+
+function openHistory(t){
+  $("hist-title").textContent = (t.label || mask(t.token)) + " 的改点历史";
+  $("hist-body").innerHTML = '<div class="muted">加载中…</div>';
+  $("hist-mask").classList.add("on");
+  api("/admin/api/tokens/" + t.id + "/history?limit=200").then(function(d){
+    var rows = d.rows || [];
+    if(!rows.length){
+      $("hist-body").innerHTML = '<div class="muted">还没有改点记录。' +
+        '每次在选点页保存一个<b>新</b>坐标才会留一条；只拨伪造/真实开关不算。</div>';
+      return;
+    }
+    $("hist-body").innerHTML = rows.map(function(r, i){
+      return '<div class="hitem' + (i === 0 ? ' now' : '') + '">' +
+        '<div class="ht">' + fmtTime(r.ts) + (i === 0 ? ' · 当前位置' : '') + '</div>' +
+        '<div class="ha">' + (r.address
+          ? esc(r.address)
+          : '<span class="muted">地址解析中或解析失败</span>') + '</div>' +
+        '<div class="muted mono">' + Number(r.latitude).toFixed(5) + ', ' +
+          Number(r.longitude).toFixed(5) + '</div>' +
+      '</div>';
+    }).join("") +
+    (rows.length >= 200 ? '<div class="muted" style="margin-top:8px">只显示最近 200 条。</div>' : '');
+  }).catch(function(e){
+    $("hist-body").innerHTML = '<div class="muted">加载失败：' + esc(e.message) + '</div>';
+  });
+}
 
 $("newbtn").addEventListener("click", function(){
   var label = $("newlabel").value.trim();
@@ -478,7 +536,7 @@ function loadArch(){
   api("/admin/api/info").then(function(d){
     $("storage").innerHTML =
       '<div class="kpis">' +
-        kpi(fmtBytes(d.dbBytes), "数据库") +
+        kpi(fmtBytes(d.dbMainBytes), "数据库") +
         kpi(d.logRows.toLocaleString(), "日志行数") +
         kpi(fmtBytes(d.archiveBytes), "归档合计") +
         kpi(d.archives.length, "归档文件") +
@@ -490,7 +548,11 @@ function loadArch(){
         '最早日志：' + (d.oldestLog ? fmtTime(d.oldestLog) : "无") +
         ' · schema v' + d.schemaVersion +
         ' · 已运行 ' + Math.round(d.uptimeSec/3600) + ' 小时' +
-        ' · 堆内 ' + fmtBytes(d.heapUsed) + '</div></div>' +
+        ' · 堆内 ' + fmtBytes(d.heapUsed) + '<br>' +
+        'WAL ' + fmtBytes(d.dbWalBytes) + ' + SHM ' + fmtBytes(d.dbShmBytes) +
+        '（SQLite 的写前日志，不是数据。只追加，涨到 4MB 就自动并回主库再从头复用，' +
+        '所以这块是固定开销、不会一直涨。上面「数据库」只算主库。）' +
+        '</div></div>' +
       (d.lastPruneError
         ? '<div class="card err">上次自动清理失败：' + esc(d.lastPruneError) +
           '<br><span class="muted">日志一行都没删，下次定时任务会重试。常见原因是磁盘写满。</span></div>'

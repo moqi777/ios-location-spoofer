@@ -223,6 +223,15 @@ function handle(req, res, url) {
     return true;
   }
 
+  // ---- 改点历史 ----
+  const mh = url.pathname.match(/^\/admin\/api\/tokens\/(\d+)\/history$/);
+  if (mh && req.method === "GET") {
+    return json(res, 200, {
+      tokenId: Number(mh[1]),
+      rows: db.listHistory(Number(mh[1]), url.searchParams.get("limit"))
+    }), true;
+  }
+
   // ---- 改备注 / 停用启用 / 删除 ----
   const m = url.pathname.match(/^\/admin\/api\/tokens\/(\d+)$/);
   if (m) {

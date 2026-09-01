@@ -144,6 +144,49 @@ const MIGRATIONS = [
   //     「31.23012, 121.47370」，根本不知道那是哪儿。
   function (d) {
     d.exec("ALTER TABLE locations ADD COLUMN address TEXT NOT NULL DEFAULT ''");
+  },
+  // v3：改点历史。locations 只有「当前位置」，改一次就把上一次覆盖掉了，
+  //     管理台看不到「这个人今天从哪挪到了哪」。
+  function (d) {
+    d.exec(`
+      CREATE TABLE IF NOT EXISTS location_history (
+        id        INTEGER PRIMARY KEY,
+        token_id  INTEGER NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
+        ts        INTEGER NOT NULL,
+        latitude  REAL    NOT NULL,
+        longitude REAL    NOT NULL,
+        altitude  INTEGER NOT NULL,
+        address   TEXT    NOT NULL DEFAULT ''
+      );
+      CREATE INDEX IF NOT EXISTS idx_lh_token_ts ON location_history(token_id, ts);
+    `);
+    // 一次性回填：/set 的日志里本来就记了坐标（server.js 的 res._detail = "纬度,经度"），
+    // 拿它把上线之前的改点补进来。地址补不了（当时没解析、也不能在同步迁移里发网络请求），
+    // 留空由启动后的 backfillHistoryAddresses 慢慢补。
+    const rows = d
+      .prepare(
+        "SELECT ts, token_id, detail FROM logs" +
+        " WHERE path = '/set' AND status < 400 AND token_id > 0 AND detail IS NOT NULL" +
+        " ORDER BY ts"
+      )
+      .all();
+    if (!rows.length) return;
+    const ins = d.prepare(
+      "INSERT INTO location_history (token_id, ts, latitude, longitude, altitude, address)" +
+      " VALUES (?, ?, ?, ?, ?, '')"
+    );
+    var n = 0;
+    for (var i = 0; i < rows.length; i += 1) {
+      const parts = String(rows[i].detail).split(",");
+      const la = Number(parts[0]);
+      const lo = Number(parts[1]);
+      // 日志的 detail 是自由文本，别的路径也往里写字符串，解析不出数就跳过
+      if (parts.length !== 2 || !isFinite(la) || !isFinite(lo)) continue;
+      if (la < -90 || la > 90 || lo < -180 || lo > 180) continue;
+      ins.run(rows[i].token_id, rows[i].ts, la, lo, 0);   // 海拔日志里没记，填 0
+      n += 1;
+    }
+    console.log("从 /set 日志回填了 " + n + " 条改点历史（地址待异步补齐）");
   }
 ];
 
@@ -358,6 +401,14 @@ function writeLocation(tokenId, obj) {
     Math.round(v.altitude), Math.round(v.horizontalAccuracy), Math.round(v.verticalAccuracy),
     addr, Date.now()
   );
+  // 坐标变了才留一条历史。/enable 拨开关、或者同一个点重复保存都会走到这里，
+  // 那些不是「改点」，记进去只会把历史刷满噪音。
+  if (!same) {
+    prep(
+      "INSERT INTO location_history (token_id, ts, latitude, longitude, altitude, address)" +
+      " VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(tokenId, Date.now(), v.latitude, v.longitude, Math.round(v.altitude), addr);
+  }
   v.address = addr;
   return v;
 }
@@ -365,9 +416,43 @@ function writeLocation(tokenId, obj) {
 // 异步逆解的结果回写。条件里带上坐标 —— 用户连点两个点时，先发的请求可能后返回，
 // 匹配不上当前坐标就自动作废，不会把新点的地址覆盖成旧点的。不用加锁。
 function setAddressIfCoordsMatch(tokenId, lat, lng, address) {
+  const addr = String(address || "").slice(0, 200);
   const r = prep(
     "UPDATE locations SET address = ? WHERE token_id = ? AND latitude = ? AND longitude = ?"
-  ).run(String(address || "").slice(0, 200), tokenId, lat, lng);
+  ).run(addr, tokenId, lat, lng);
+  // 历史行同样按坐标匹配，只补最新那一条：同一个点被反复保存时，
+  // 老的那几条各自有自己的解析结果，不该被这次的覆盖。
+  prep(
+    "UPDATE location_history SET address = ?" +
+    " WHERE id = (SELECT id FROM location_history" +
+    "             WHERE token_id = ? AND latitude = ? AND longitude = ?" +
+    "             ORDER BY ts DESC, id DESC LIMIT 1)"
+  ).run(addr, tokenId, lat, lng);
+  return r.changes > 0;
+}
+
+// ---- 改点历史 ----
+function listHistory(tokenId, limit) {
+  const n = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  return prep(
+    "SELECT id, ts, latitude, longitude, altitude, address FROM location_history" +
+    " WHERE token_id = ? ORDER BY ts DESC, id DESC LIMIT ?"
+  ).all(Number(tokenId), n);
+}
+
+// 地址是异步补的，逆解失败（上游 502、超时）就会留下空地址。
+// 启动后有个补漏任务拿这个清单慢慢重试，顺带把 v3 迁移回填进来的老记录补上。
+function historyMissingAddress(limit) {
+  const n = Math.min(Math.max(Number(limit) || 50, 1), 500);
+  return prep(
+    "SELECT id, latitude, longitude FROM location_history" +
+    " WHERE address = '' ORDER BY ts DESC, id DESC LIMIT ?"
+  ).all(n);
+}
+
+function setHistoryAddress(id, address) {
+  const r = prep("UPDATE location_history SET address = ? WHERE id = ? AND address = ''")
+    .run(String(address || "").slice(0, 200), Number(id));
   return r.changes > 0;
 }
 
@@ -659,20 +744,34 @@ function vacuum() {
   return { before: before, after: after, freed: before - after };
 }
 
-function dbBytes() {
-  var total = 0;
-  [DB_PATH, DB_PATH + "-wal", DB_PATH + "-shm"].forEach(function (f) {
-    try { total += fs.statSync(f).size; } catch (e) { /* 文件可能不存在 */ }
+// 三个文件分开量。合成一个数字会严重误导：WAL 是只追加的，每 2 秒一次的日志
+// 落盘哪怕只改一页也在尾部追加一份新副本，所以它涨得比真实数据快得多，
+// 到 wal_autocheckpoint（默认 1000 页 = 4MB）才并回主库并从头复用 —— 也就是
+// 稳态就是 4MB 封顶。实测 375 行日志时「主库+WAL」是 3.63MB，其中真数据只有 0.1MB。
+function dbParts() {
+  const out = { main: 0, wal: 0, shm: 0 };
+  const map = { main: DB_PATH, wal: DB_PATH + "-wal", shm: DB_PATH + "-shm" };
+  Object.keys(map).forEach(function (k) {
+    try { out[k] = fs.statSync(map[k]).size; } catch (e) { /* 文件可能不存在 */ }
   });
-  return total;
+  return out;
+}
+
+function dbBytes() {
+  const p = dbParts();
+  return p.main + p.wal + p.shm;
 }
 
 function info() {
   const archives = listArchives();
   const mem = process.memoryUsage();
+  const parts = dbParts();
   return {
     dbFile: DB_PATH,
-    dbBytes: dbBytes(),
+    dbBytes: parts.main + parts.wal + parts.shm,
+    dbMainBytes: parts.main,
+    dbWalBytes: parts.wal,
+    dbShmBytes: parts.shm,
     rss: mem.rss,
     heapUsed: mem.heapUsed,
     uptimeSec: Math.round(process.uptime()),
@@ -820,6 +919,9 @@ module.exports = {
   readLocation: readLocation,
   writeLocation: writeLocation,
   setAddressIfCoordsMatch: setAddressIfCoordsMatch,
+  listHistory: listHistory,
+  historyMissingAddress: historyMissingAddress,
+  setHistoryAddress: setHistoryAddress,
   logRequest: logRequest,
   flushLogs: flushLogs,
   startLogFlusher: startLogFlusher,
