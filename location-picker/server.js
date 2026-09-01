@@ -271,11 +271,12 @@ async function backfillHistoryAddresses(max) {
     const rows = db.historyMissingAddress(max || 200);
     for (var i = 0; i < rows.length; i += 1) {
       const r = rows[i];
+      try { db.bumpHistoryTry(r.id); } catch (e) { /* 库出问题时静默 */ }
       var addr = "";
       try {
         if (!outOfChina(r.latitude, r.longitude)) addr = await amapAddress(r.latitude, r.longitude);
         if (!addr) addr = await osmAddress(r.latitude, r.longitude);
-      } catch (e) { /* 单条失败就跳过，下一轮再试 */ }
+      } catch (e) { /* 单条失败就跳过，下一轮再试；试满次数后 db 那边不再返回它 */ }
       if (addr) {
         try { if (db.setHistoryAddress(r.id, addr)) done += 1; } catch (e) { /* 库出问题时静默 */ }
       }

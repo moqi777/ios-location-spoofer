@@ -545,6 +545,10 @@ function loadArch(){
       '<div class="card"><div class="muted">' +
         '保留策略：表内留最近 ' + d.retentionMonths + ' 个完整月 + 当月，超过 ' +
         d.maxRows.toLocaleString() + ' 行时提前归档；归档文件最多留 ' + d.archiveKeepMonths + ' 个月。<br>' +
+        '改点历史 ' + d.historyRows.toLocaleString() + ' 条' +
+        (d.historyGaveUp
+          ? '（其中 ' + d.historyGaveUp + ' 条地址反复解析失败，已放弃重试）'
+          : '') + '<br>' +
         '最早日志：' + (d.oldestLog ? fmtTime(d.oldestLog) : "无") +
         ' · schema v' + d.schemaVersion +
         ' · 已运行 ' + Math.round(d.uptimeSec/3600) + ' 小时' +

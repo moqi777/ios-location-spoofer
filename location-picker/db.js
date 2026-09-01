@@ -187,6 +187,23 @@ const MIGRATIONS = [
       n += 1;
     }
     console.log("从 /set 日志回填了 " + n + " 条改点历史（地址待异步补齐）");
+  },
+  // v4：给补漏任务加刹车 + 加索引。
+  //  · tries：海里、戈壁这种地方两个上游都解不出地址，那行就永远是空的，
+  //    而补漏任务每 6 小时捞一次 —— 积到 200 条死行，光重试每天就白烧 1600 次
+  //    上游请求（高德个人 key 一天才 5000 次），而且会把更老的、本来能解出来的
+  //    行永远挤出 LIMIT 200 之外。试满 ADDR_MAX_TRIES 次就认命。
+  //  · idx_lh_pending：补漏那条 SELECT 没有 token_id 条件，用不上 idx_lh_token_ts，
+  //    只能全表扫 + 临时排序（100 万行实测 35ms）。部分索引只收待补的行，
+  //    解出来或放弃的自动移出索引，所以它永远只有几十条大小。
+  function (d) {
+    d.exec("ALTER TABLE location_history ADD COLUMN tries INTEGER NOT NULL DEFAULT 0");
+    // 这里的 3 必须和 ADDR_MAX_TRIES 一致：SQLite 只有在查询的 WHERE
+    // 能推出索引的 WHERE 时才会用部分索引，条件对不上索引就白建了。
+    d.exec(
+      "CREATE INDEX IF NOT EXISTS idx_lh_pending ON location_history(ts DESC)" +
+      " WHERE address = '' AND tries < 3"
+    );
   }
 ];
 
@@ -442,12 +459,28 @@ function listHistory(tokenId, limit) {
 
 // 地址是异步补的，逆解失败（上游 502、超时）就会留下空地址。
 // 启动后有个补漏任务拿这个清单慢慢重试，顺带把 v3 迁移回填进来的老记录补上。
+// 改这个数就得同步改 v4 迁移里 idx_lh_pending 的 WHERE，否则部分索引失效、退回全表扫。
+const ADDR_MAX_TRIES = 3;
+
 function historyMissingAddress(limit) {
   const n = Math.min(Math.max(Number(limit) || 50, 1), 500);
   return prep(
-    "SELECT id, latitude, longitude FROM location_history" +
-    " WHERE address = '' ORDER BY ts DESC, id DESC LIMIT ?"
+    "SELECT id, latitude, longitude, tries FROM location_history" +
+    " WHERE address = '' AND tries < 3 ORDER BY ts DESC, id DESC LIMIT ?"
   ).all(n);
+}
+
+// 尝试前先加一次。放在解析之前，是因为解析要走网络：进程如果在中间被
+// Railway 重新部署掉，这行不会因为「没记上」而被无限重试。
+function bumpHistoryTry(id) {
+  prep("UPDATE location_history SET tries = tries + 1 WHERE id = ?").run(Number(id));
+}
+
+// 补不出来、已经放弃的行数。管理台显示用，让人知道有多少地址是永远空着的。
+function historyGaveUp() {
+  return prep(
+    "SELECT COUNT(*) AS c FROM location_history WHERE address = '' AND tries >= ?"
+  ).get(ADDR_MAX_TRIES).c;
 }
 
 function setHistoryAddress(id, address) {
@@ -779,6 +812,8 @@ function info() {
     logRows: prep("SELECT COUNT(*) AS c FROM logs").get().c,
     oldestLog: prep("SELECT MIN(ts) AS t FROM logs").get().t,
     dailyRows: prep("SELECT COUNT(*) AS c FROM daily").get().c,
+    historyRows: prep("SELECT COUNT(*) AS c FROM location_history").get().c,
+    historyGaveUp: historyGaveUp(),
     lastPruneError: lastPruneError,
     retentionMonths: LOG_RETENTION_MONTHS,
     maxRows: LOG_MAX_ROWS,
@@ -921,7 +956,9 @@ module.exports = {
   setAddressIfCoordsMatch: setAddressIfCoordsMatch,
   listHistory: listHistory,
   historyMissingAddress: historyMissingAddress,
+  bumpHistoryTry: bumpHistoryTry,
   setHistoryAddress: setHistoryAddress,
+  ADDR_MAX_TRIES: ADDR_MAX_TRIES,
   logRequest: logRequest,
   flushLogs: flushLogs,
   startLogFlusher: startLogFlusher,
