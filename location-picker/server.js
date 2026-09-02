@@ -766,12 +766,17 @@ function handler(req, res) {
   if (url.pathname === "/" && req.method === "GET") {
     var pRow = resolveToken(token, res);
     if (!pRow || !requireActive(pRow, res)) return;
-    // 备注为空就整条不渲染，别留一条空的灰边
-    var who = htmlEscape(pRow.label || "");
+    // 备注在这一页的语义就是「用户名」。为空就整行不渲染。
+    // 头像取首字符要用 Array.from：备注可能以 emoji 开头，用 [0] 会切出半个代理对。
+    var label = String(pRow.label || "");
+    var who = htmlEscape(label);
+    var initial = htmlEscape((Array.from(label)[0] || "").toUpperCase());
     var html = PAGE
       .split("__SETUP_DONE__").join(db.guideOn(pRow) ? "false" : "true")
-      .split("__WHOBAR__").join(who ? '<div class="who">当前页面：<b>' + who + '</b></div>' : "")
-      .split("__TITLE__").join(who ? "定位选点 · " + who : "定位选点");
+      .split("__WHOBAR__").join(who
+        ? '<div class="who"><span class="ava">' + initial + '</span><b>' + who + '</b></div>'
+        : "")
+      .split("__TITLE__").join(who ? who + " · 定位选点" : "定位选点");
     return sendGz(req, res, 200, "text/html; charset=utf-8", html);
   }
 
@@ -847,10 +852,12 @@ const PAGE = `<!doctype html>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
-  /* 顶部备注条：管理员手上有好几个链接，不标一下分不清打开的是谁的 */
-  .who{padding:6px 10px;background:#f2f2f7;border-bottom:1px solid #e2e2e2;
-    font-size:13px;color:#6b6b70;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .who b{color:#1c1c1e;font-weight:600}
+  /* 顶部这行就是「你是谁」：管理员手上有好几个链接，不标一下分不清打开的是谁的。
+     做成头像+名字，不要灰底横条 —— 那看着像报错提示，而这里只是个身份标识 */
+  .who{display:flex;align-items:center;gap:7px;padding:10px 10px 2px;font-size:14px}
+  .who .ava{flex:0 0 22px;width:22px;height:22px;border-radius:50%;background:#007aff;
+    color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center}
+  .who b{font-weight:600;color:#1c1c1e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .bar{padding:8px;display:flex;gap:6px;box-sizing:border-box}
   .bar input{flex:1;padding:10px;font-size:16px;border:1px solid #ccc;border-radius:8px}
   .bar button{padding:10px 14px;font-size:16px;border:0;border-radius:8px;background:#007aff;color:#fff}
