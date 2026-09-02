@@ -1,10 +1,15 @@
 // 安装教程页 —— /help?token=xxx
 //
-// 为什么单独一页而不是塞进弹窗：新用户拿到链接时，离「能改定位」还差三步，
+// 为什么单独一页而不是塞进弹窗：新用户拿到链接时，离「能改定位」还差四步，
 // 弹窗里放不下，也不该放。弹窗只负责把人引到这儿来。
 //
 // 图片走 /tutorial/*.jpg，由服务器自己托管 —— GitHub 图床国内打不开。
+// 全部 loading=lazy：27 张共 528KB，不懒加载的话开页就得等半天。
 // 图还没补齐时 onerror 会把 <img> 换成一个占位框，不至于留一片破图。
+//
+// 截图里的隐私已经在生成时裁掉了：关于本机那张切到只剩「证书信任设置」一行
+// （原图有 IMEI/ICCID/MEID），首页那张只留顶部开关（原图有机场订阅名和流量）。
+// 以后换图记得也过一遍这两处。
 
 const PAGE = `<!doctype html>
 <html lang="zh">
@@ -13,7 +18,7 @@ const PAGE = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>安装教程</title>
 <style>
-  :root{--blue:#007aff;--orange:#ff9500;--red:#ff3b30;--line:#e5e5ea;--dim:#8e8e93}
+  :root{--blue:#007aff;--green:#34c759;--red:#ff3b30;--line:#e5e5ea;--dim:#8e8e93}
   *{box-sizing:border-box}
   html,body{margin:0;background:#f2f2f7;color:#1c1c1e;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.6}
@@ -28,7 +33,7 @@ const PAGE = `<!doctype html>
   .step .why{color:var(--dim);font-size:13px;margin:0 0 10px 32px}
   ol,ul{margin:8px 0;padding-left:22px}
   .steps{margin:6px 0 10px;padding-left:20px}
-  .steps li{margin:3px 0;color:#1c1c1e}
+  .steps li{margin:3px 0}
   li{margin:4px 0}
   code{background:#f2f2f7;padding:1px 5px;border-radius:4px;font-size:13px}
   .warn{background:#fff4e5;border:1px solid #ffd8a8;color:#8a4b00;
@@ -36,41 +41,67 @@ const PAGE = `<!doctype html>
   .danger{background:#ffeceb;border:1px solid #ffc9c5;color:#a3231a;
     border-radius:9px;padding:10px 12px;margin:10px 0;font-size:14px}
   .warn b,.danger b{display:block;margin-bottom:2px}
+  .warn b.i,.danger b.i{display:inline;margin:0}
   .disc{margin:8px 0 2px;padding:9px 11px;border-radius:8px;background:#f7f7f9;
     border:1px solid var(--line);color:var(--dim);font-size:12.5px;line-height:1.55}
   a{color:var(--blue)}
+  /* 版本分叉：两条路径并排放，让人一眼看出自己该走哪条 */
+  .ver{border:1px solid var(--line);border-radius:10px;margin:10px 0;overflow:hidden}
+  .ver .vh{padding:8px 11px;font-size:13.5px;font-weight:700;background:#eef5ff;color:#0a4b9c;
+    border-bottom:1px solid var(--line)}
+  .ver.old .vh{background:#f4f4f6;color:#4a4a4f}
+  .ver .vb{padding:10px 12px;font-size:14px}
+  .ver .vb .path{font-weight:600;line-height:1.75}
   .shot{margin:10px 0;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
   .shot img{display:block;width:100%;height:auto}
   .shot .cap{padding:6px 10px;font-size:12px;color:var(--dim);border-top:1px solid var(--line)}
+  /* 第三步 20 张图：两列卡片，每张自带序号和一句话，比长列表好扫 */
+  /* align-items:start —— 有的截图裁得很矮（比如第 14 步只剩一行），
+     默认的 stretch 会把它拉到跟同行那张一样高，卡片里空出一大块白 */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin:10px 0 4px;align-items:start}
+  .g{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+  .g img{width:100%;display:block;background:#fafafa;cursor:zoom-in}
+  .g .cap{padding:6px 8px;font-size:12px;line-height:1.5;color:#3a3a3c;flex:1}
+  .g .cap i{font-style:normal;display:inline-flex;align-items:center;justify-content:center;
+    width:17px;height:17px;border-radius:50%;background:var(--blue);color:#fff;
+    font-size:11px;font-weight:700;margin-right:4px;vertical-align:-3px}
   .ph{padding:26px 12px;text-align:center;color:var(--dim);font-size:13px;background:#fafafa}
-  .cta{display:block;text-align:center;padding:14px;border-radius:11px;background:#34c759;
+  .cta{display:block;text-align:center;padding:14px;border-radius:11px;background:var(--green);
     color:#fff;font-weight:700;font-size:17px;text-decoration:none;margin:14px 0 6px}
   .cta.off{background:#c7c7cc}
   .hint{color:var(--dim);font-size:13px;text-align:center}
   .alt{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);font-size:13.5px;color:#444}
   .alt b{color:#1c1c1e}
-  .copybtn{display:block;width:100%;margin-top:8px;padding:11px;border:1px solid var(--blue);
-    border-radius:9px;background:#fff;color:var(--blue);font-size:15px;font-weight:600}
-  .copybtn.done{background:var(--blue);color:#fff}
   .back{display:block;text-align:center;padding:13px;border-radius:11px;background:#fff;
     border:1px solid var(--line);color:var(--blue);text-decoration:none;font-weight:600;margin-top:18px}
   .wx{background:var(--red);color:#fff;border-radius:11px;padding:12px 14px;margin-bottom:14px;font-size:15px}
   .wx b{display:block;font-size:16px;margin-bottom:3px}
+  .faq{margin:10px 0 0}
+  .faq dt{font-weight:700;font-size:14.5px;margin-top:12px}
+  .faq dd{margin:3px 0 0;font-size:14px;color:#3a3a3c}
+  /* 点图放大：教程截图缩到半屏后细节看不清，得能点开 */
+  #lb{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:50;display:none;
+    align-items:center;justify-content:center;padding:16px}
+  #lb.on{display:flex}
+  #lb img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px}
+  #lb .x{position:absolute;top:12px;right:16px;color:#fff;font-size:30px;line-height:1;
+    background:none;border:none;padding:6px}
 </style>
 </head>
 <body>
 <header>
   <h1>安装教程</h1>
-  <div class="sub">照着做一遍，大约 10 分钟，之后就不用再管了</div>
+  <div class="sub">照着做一遍，大约 15 分钟，之后就不用再管了</div>
 </header>
 <main>
 <div id="wxbox"></div>
 
 <div class="step">
   <h2><span class="n">1</span>安装 Shadowrocket（小火箭）</h2>
-  <p class="why">这个 App 国区商店没有，得用外区 Apple ID 下载。</p>
+  <p class="why">这个 App 国区商店没有，得先把 App Store 换成外区账号才能下。</p>
+
   <ol>
-    <li>买一个外区 Apple ID。两个渠道，自己挑：
+    <li><b>买一个外区 Apple ID。</b>两个渠道，自己挑：
       <ul>
         <li><a href="https://shop66.hi-taobao.top/products/shadowrocket-shared-id-auto-delivery" target="_blank" rel="noopener">贵一点，卖家提供售后</a></li>
         <li><a href="https://www.yuguoid.com/" target="_blank" rel="noopener">便宜，卖家明确不提供售后</a></li>
@@ -79,46 +110,158 @@ const PAGE = `<!doctype html>
         我不参与交易、不经手你的付款、也不了解他们的经营情况。所谓「售后」指的是<b>那家平台自己承诺的售后</b>，
         找他们，不是找我。账号买卖属于第三方与你之间的事，买之前请自行判断，风险自负。</div>
     </li>
-    <li>打开 <b>设置 → 顶部你的头像 → 媒体与购买项目 → 退出登录</b></li>
-    <li>打开 <b>App Store</b>，登录刚买的外区账号，搜索并下载 Shadowrocket</li>
-    <li>下载完成后，<b>立刻按上面的路径退出</b>，换回自己的国区账号</li>
+    <li><b>退出你现在的 App Store 账号。</b>
+      <span style="color:var(--red)">这一步不同系统版本路径不一样</span>，往下看。</li>
   </ol>
-  <div class="danger">
-    <b>三条一定要照做</b>
-    1、只在「媒体与购买项目」里登录，<b>绝对不要登 iCloud</b>。这类账号是多人共享的，登了 iCloud 等于把通讯录和照片交给陌生人。<br>
-    2、登录后如果弹「Apple ID 安全 / 双重认证」，点<b>「其他选项」→「不升级」</b>，不要绑你的手机号。<br>
-    3、共享账号容易被风控，登不上就多试几次或等 24 小时。
+
+  <div class="warn">
+    <b>先确认自己是什么版本</b>
+    <b class="i">设置 → 通用 → 关于本机 → 系统版本</b>。iOS 26.4 是分界线，走错路径会找不到那个入口。
   </div>
-  <div class="shot"><img src="/tutorial/switch-appleid.jpg" alt="切换 Apple ID" onerror="ph(this)"><div class="cap">设置 → 头像 → 媒体与购买项目 → 退出登录</div></div>
-  <div class="shot"><img src="/tutorial/skip-2fa.jpg" alt="跳过双重认证" onerror="ph(this)"><div class="cap">弹出安全提示时，选「其他选项」→「不升级」</div></div>
+
+  <div class="ver">
+    <div class="vh">iOS 26.4 及以上 —— 入口挪到「设置」里了</div>
+    <div class="vb">
+      <div class="path">设置 → 顶部你的名字（Apple 账户）<br>→ 媒体与购买项目 → 退出登录</div>
+      <div class="shot" style="margin-bottom:0">
+        <img src="/tutorial/s1a-signout-new.jpg" alt="iOS 26.4 及以上退出方式" loading="lazy" onerror="ph(this)">
+        <div class="cap">新版路径：设置 → Apple 账户 → 媒体与购买项目 → 退出登录</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ver old">
+    <div class="vh">iOS 26.4 以下 —— 老办法，在 App Store 里退</div>
+    <div class="vb">
+      <div class="path">打开 App Store → 右上角头像<br>→ 一直往下滑到最底 → 退出登录</div>
+      <div class="shot" style="margin-bottom:0">
+        <img src="/tutorial/s1b-signout-old.jpg" alt="旧版本退出方式" loading="lazy" onerror="ph(this)">
+        <div class="cap">旧版路径：App Store → 头像 → 拉到最底 → 退出登录</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="danger">
+    <b>「媒体与购买项目」不是 iCloud</b>
+    它只是 App Store 下载应用用的那个账号。这类账号是多人共享的，
+    <b class="i">千万不要拿它登 iCloud、也不要开同步</b> —— 那等于把通讯录和照片交给陌生人。
+  </div>
+
+  <ol start="3">
+    <li><b>用刚买的外区账号登录 App Store</b>，搜索并下载 Shadowrocket。</li>
+    <li>登录时如果弹「Apple ID 安全 / 双重认证」，
+      点<b>「其他选项」→「不升级」</b>，<b>不要</b>绑你的手机号。</li>
+    <li>下载完成后，<b>立刻按上面同样的路径退出</b>外区账号，换回自己的国区账号，
+      之后照常更新国区 App。</li>
+  </ol>
+
+  <div class="shot">
+    <img src="/tutorial/s1c-skip2fa.jpg" alt="跳过双重认证" loading="lazy" onerror="ph(this)">
+    <div class="cap">敲重点：先点「其他选项」，再点「不升级」</div>
+  </div>
+
+  <div class="warn">
+    <b>登不上很正常</b>
+    共享账号容易被风控，多试几次或等 24 小时再试。密码错了别硬试，会锁。
+  </div>
 </div>
 
 <div class="step">
   <h2><span class="n">2</span>导入配置</h2>
-  <p class="why">一次装好节点规则和定位脚本，点一下就行。</p>
+  <p class="why">一次装好分流规则和定位脚本，你的专属链接已经在按钮里了。</p>
   <div id="ctabox"></div>
+  <div class="shot">
+    <img src="/tutorial/s2-enable.jpg" alt="打开小火箭开关" loading="lazy" onerror="ph(this)">
+    <div class="cap">最后回首页，把最上面那个开关打开（会弹一次「允许添加 VPN 配置」，点允许）</div>
+  </div>
+  <div class="warn">
+    <b>首页那一堆订阅不用管</b>
+    那是节点，跟改定位没关系 —— <b class="i">不订阅任何节点也能改定位</b>。
+    需要翻墙再找管理员要。
+  </div>
 </div>
 
 <div class="step">
   <h2><span class="n">3</span>打开 HTTPS 解密</h2>
   <p class="why">不做这步，前面全白装 —— 定位不会变，而且不会有任何报错。</p>
-  <ol>
-    <li>小火箭首页，点配置文件后面的 <b>ⓘ</b> → <b>HTTPS 解密</b></li>
-    <li><b>证书 → 生成新的 CA 证书</b>，再点<b>安装证书</b></li>
-    <li>回到系统 <b>设置 → 已下载描述文件 → 安装</b>（要输锁屏密码）</li>
-    <li>系统 <b>设置 → 通用 → 关于本机 → 证书信任设置</b>，把 Shadowrocket 那一项的开关<b>打开</b></li>
-    <li>回到小火箭，把 <b>HTTPS 解密</b> 的总开关打开</li>
-  </ol>
   <div class="warn">
-    <b>第 4 步最容易漏</b>
-    「证书信任设置」藏在<b>关于本机</b>页面的最底部，装完描述文件不会自动跳过去，得自己翻。这个开关没开，解密就是不生效的。
+    <b>二十步看着吓人，其实一路点「下一步」</b>
+    真正容易漏的只有第 <b class="i">14</b> 步：「证书信任设置」藏在<b class="i">关于本机</b>页面的<b class="i">最底部</b>，
+    装完描述文件不会自动跳过去，得自己翻下去。这个开关没开，解密就是不生效的。
   </div>
-  <div class="shot"><img src="/tutorial/mitm-cert.jpg" alt="生成并安装证书" onerror="ph(this)"><div class="cap">小火箭 → ⓘ → HTTPS 解密 → 证书</div></div>
-  <div class="shot"><img src="/tutorial/trust-cert.jpg" alt="信任证书" onerror="ph(this)"><div class="cap">设置 → 通用 → 关于本机 → 证书信任设置</div></div>
+  <div class="grid">
+    <div class="g"><img src="/tutorial/s3-01.jpg" alt="1" loading="lazy" onerror="ph(this)"><div class="cap"><i>1</i>底部「配置」栏，先切到这份配置让它打勾，再点右边的 ⓘ</div></div>
+    <div class="g"><img src="/tutorial/s3-02.jpg" alt="2" loading="lazy" onerror="ph(this)"><div class="cap"><i>2</i>找到「HTTPS 解密」，点进去</div></div>
+    <div class="g"><img src="/tutorial/s3-03.jpg" alt="3" loading="lazy" onerror="ph(this)"><div class="cap"><i>3</i>把最上面的「HTTPS 解密」开关打开</div></div>
+    <div class="g"><img src="/tutorial/s3-04.jpg" alt="4" loading="lazy" onerror="ph(this)"><div class="cap"><i>4</i>往下滑到「证书」，点「安装证书」</div></div>
+    <div class="g"><img src="/tutorial/s3-05.jpg" alt="5" loading="lazy" onerror="ph(this)"><div class="cap"><i>5</i>弹「正尝试下载配置描述文件」，点<b>允许</b></div></div>
+    <div class="g"><img src="/tutorial/s3-06.jpg" alt="6" loading="lazy" onerror="ph(this)"><div class="cap"><i>6</i>提示「已下载描述文件」，点<b>关闭</b></div></div>
+    <div class="g"><img src="/tutorial/s3-07.jpg" alt="7" loading="lazy" onerror="ph(this)"><div class="cap"><i>7</i>回系统「设置 → 通用 → VPN 与设备管理」</div></div>
+    <div class="g"><img src="/tutorial/s3-08.jpg" alt="8" loading="lazy" onerror="ph(this)"><div class="cap"><i>8</i>点「已下载的描述文件」里的 Shadowrocket</div></div>
+    <div class="g"><img src="/tutorial/s3-09.jpg" alt="9" loading="lazy" onerror="ph(this)"><div class="cap"><i>9</i>右上角「安装」，要输锁屏密码</div></div>
+    <div class="g"><img src="/tutorial/s3-10.jpg" alt="10" loading="lazy" onerror="ph(this)"><div class="cap"><i>10</i>警告页再点一次右上角「安装」</div></div>
+    <div class="g"><img src="/tutorial/s3-11.jpg" alt="11" loading="lazy" onerror="ph(this)"><div class="cap"><i>11</i>底部弹窗再点一次「安装」</div></div>
+    <div class="g"><img src="/tutorial/s3-12.jpg" alt="12" loading="lazy" onerror="ph(this)"><div class="cap"><i>12</i>显示「已安装描述文件」，点右上角「完成」</div></div>
+    <div class="g"><img src="/tutorial/s3-13.jpg" alt="13" loading="lazy" onerror="ph(this)"><div class="cap"><i>13</i>回「设置 → 通用 → 关于本机」</div></div>
+    <div class="g"><img src="/tutorial/s3-14.jpg" alt="14" loading="lazy" onerror="ph(this)"><div class="cap"><i>14</i><b style="color:var(--red)">最容易漏</b>：一直滑到<b>最底部</b>，点「证书信任设置」</div></div>
+    <div class="g"><img src="/tutorial/s3-15.jpg" alt="15" loading="lazy" onerror="ph(this)"><div class="cap"><i>15</i>把 Shadowrocket 那一项的开关打开</div></div>
+    <div class="g"><img src="/tutorial/s3-16.jpg" alt="16" loading="lazy" onerror="ph(this)"><div class="cap"><i>16</i>弹根证书警告，点「继续」</div></div>
+    <div class="g"><img src="/tutorial/s3-17.jpg" alt="17" loading="lazy" onerror="ph(this)"><div class="cap"><i>17</i>回到小火箭，左上角 ✕ 关掉这个空白页</div></div>
+    <div class="g"><img src="/tutorial/s3-18.jpg" alt="18" loading="lazy" onerror="ph(this)"><div class="cap"><i>18</i>证书这里变成「<b>系统已信任</b>」，点右上角 ✓</div></div>
+    <div class="g"><img src="/tutorial/s3-19.jpg" alt="19" loading="lazy" onerror="ph(this)"><div class="cap"><i>19</i>确认「HTTPS 解密」开关是开的，点右上角 ✓ 保存</div></div>
+    <div class="g"><img src="/tutorial/s3-20.jpg" alt="20" loading="lazy" onerror="ph(this)"><div class="cap"><i>20</i>左上角返回。装完了</div></div>
+  </div>
+  <div class="hint" style="text-align:left;margin-top:8px">图看不清？点一下可以放大。</div>
+</div>
+
+<div class="step">
+  <h2><span class="n">4</span>开始改定位</h2>
+  <p class="why">回到选点页，搜地名 → 点一下地图 → 保存，就完事了。</p>
+  <div class="shot">
+    <img src="/tutorial/s4-pick.jpg" alt="选点页用法" loading="lazy" onerror="ph(this)">
+    <div class="cap">① 搜地址 ② 选地图源 ③ 点「保存定位」</div>
+  </div>
+  <div class="warn">
+    <b>改完最多等 5 分钟</b>
+    脚本本地会缓存 5 分钟，刚保存完立刻看可能还是上一个点。想立刻生效就把小火箭开关关了再开。
+  </div>
+</div>
+
+<div class="step">
+  <h2 style="margin-bottom:8px">常见问题</h2>
+  <dl class="faq">
+    <dt>保存了，但手机上的定位没变</dt>
+    <dd>按顺序排查：<br>
+      1、小火箭首页那个总开关开了吗；<br>
+      2、第 3 步的<b>证书信任设置</b>开了吗（最常见）；<br>
+      3、等 5 分钟，或者把小火箭开关关了再开；<br>
+      4、还不行就清一下系统的定位缓存，见下图。</dd>
+    <dd>
+      <div class="shot">
+        <img src="/tutorial/fix-loccache.jpg" alt="清定位缓存" loading="lazy" onerror="ph(this)">
+        <div class="cap">设置 → 隐私与安全性 → 定位服务，关掉再打开</div>
+      </div>
+    </dd>
+
+    <dt>在户外就不准，在室内才对</dt>
+    <dd>这是原理限制。我们改的是苹果的 <b>Wi-Fi / 基站</b> 定位结果，
+      手机只要能收到 GPS 卫星信号，系统就优先信 GPS，伪造的结果会被盖掉。
+      室内、或者开飞行模式只连 Wi-Fi 时最稳。</dd>
+
+    <dt>提示「网址无效」，按钮点了没反应</dt>
+    <dd>这台手机还没装小火箭，回第 1 步。链接其实已经复制到剪贴板了，
+      装完自己打开小火箭粘贴也一样。</dd>
+
+    <dt>换手机了，或者重装了小火箭</dt>
+    <dd>需要重新配置导入，联系管理员处理。</dd>
+  </dl>
 </div>
 
 <a class="back" id="backlink" href="#">都弄好了？回到选点页 →</a>
 </main>
+
+<div id="lb"><button class="x" id="lbx" aria-label="关闭">&times;</button><img id="lbi" alt=""></div>
+
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
 var IN_WECHAT = /MicroMessenger/i.test(navigator.userAgent);
@@ -132,6 +275,17 @@ function ph(img){
   box.insertBefore(d, box.firstChild);
 }
 $("backlink").href = "/?token=" + encodeURIComponent(token);
+
+// 点图放大。缩到半屏的截图里那些小字根本认不出来，没这个等于没图。
+var lb = $("lb"), lbi = $("lbi");
+document.addEventListener("click", function(e){
+  var t = e.target;
+  if(t && t.tagName === "IMG" && t.id !== "lbi" && t.closest(".g, .shot")){
+    lbi.src = t.src; lb.classList.add("on");
+    return;
+  }
+  if(t === lb || t.id === "lbx"){ lb.classList.remove("on"); lbi.src = ""; }
+});
 
 // 微信内置浏览器唤不起 shadowrocket:// 这类自定义 scheme，点了会毫无反应、
 // 也不会报错 —— 而链接偏偏就是微信发的。所以这里必须拦下来明说。
@@ -148,7 +302,7 @@ if(IN_WECHAT){
   // 一键导入是做不到的：shadowrocket://install?config= 只能把 App 唤起来，
   // 导入动作它不认；小火箭启动时扫剪贴板那条路实测也不生效。
   // 所以这个按钮只干两件确定能成的事：把链接复制好、把 App 唤起来。
-  // 剩下四步必须用户自己点，那就把路径写清楚，别让人在界面里瞎找。
+  // 剩下五步必须用户自己点，那就把路径写清楚，别让人在界面里瞎找。
   // 复制要用同步的 execCommand —— clipboard.writeText 是异步的，
   // 等它 resolve 时页面早跳走了，剪贴板还是空的。
   function copySync(text){
