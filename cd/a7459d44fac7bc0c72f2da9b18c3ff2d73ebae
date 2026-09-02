@@ -1,0 +1,51 @@
+location-picker/location-spoofer.js
+  s_7a9fa0b967f219::t_9557b5355d2709 1-2136
+location-picker/tutorial/README.md
+  s_7a9fa0b967f219::t_c786dba430bcb9 1-14
+location-picker/.env.example
+  s_7a9fa0b967f219::t_9aaede0b8e6d34 20-23
+location-picker/RAILWAY.md
+  s_7a9fa0b967f219::t_9aaede0b8e6d34 115-118
+location-picker/admin-page.js
+  s_7a9fa0b967f219::t_52d01a138d3b2a 36-39,267-275,279,302-306,364
+location-picker/server.js
+  s_7a9fa0b967f219::t_cdc4a67a5920e5 33,35,371-401,437-440
+  s_7a9fa0b967f219::t_f750b6dfd93cf1 36,338-361,507-523
+  s_7a9fa0b967f219::t_a5104e9e852f02 480,490-491,639-645
+  s_7a9fa0b967f219::t_70ddd0ab5bbdea 728-729,1347-1348
+  s_7a9fa0b967f219::t_24831d24095700 829-847,851,870-871
+  s_7a9fa0b967f219::t_f712c5932cc86b 330-337,524-554
+  s_7a9fa0b967f219::t_e7622127e295e7 877-915
+location-picker/bundle.js
+  s_7a9fa0b967f219::t_5c10ae06ff0847 56,64,66,69-77,103,120
+  s_7a9fa0b967f219::t_1e1fcc46e4203a 1-55,57-63,65,67-68,78-102,104-119,121-135
+location-picker/Dockerfile
+  s_7a9fa0b967f219::t_c786dba430bcb9 7-11
+location-picker/db.js
+  s_7a9fa0b967f219::t_fa20b6632df776 292
+  s_7a9fa0b967f219::t_0db2731368edc5 345-414,1053-1057
+  s_7a9fa0b967f219::t_4dba3edfb0e8ec 207-226
+  s_7a9fa0b967f219::t_ce99959d421dac 337,616-618
+location-picker/admin.js
+  s_7a9fa0b967f219::t_304347583506d8 170-172,175,201-205
+location-picker/shadowrocket.conf
+  s_7a9fa0b967f219::t_0282d2c1457486 1-337
+location-picker/help-page.js
+  s_7a9fa0b967f219::t_456ac2bfa941ab 1-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "cda7459d44fac7bc0c72f2da9b18c3ff2d73ebae",
+  "prompts": {},
+  "sessions": {
+    "s_7a9fa0b967f219": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15bf7c02-818b-4679-af94-9ad9e84534e1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "moqing <moqing@tsign.cn>"
+    }
+  }
+}
