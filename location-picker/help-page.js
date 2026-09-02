@@ -4,6 +4,8 @@
 // 弹窗里放不下，也不该放。弹窗只负责把人引到这儿来。
 //
 // 图片走 /tutorial/*.jpg，由服务器自己托管 —— GitHub 图床国内打不开。
+// src 上的 ?v=__ASSETV__ 由 server.js 启动时替换成 tutorial/ 目录的内容哈希：
+// 图片是七天强缓存 + 固定文件名，不带版本的话换了图老用户永远看不到新的。
 // 全部 loading=lazy：26 张共 528KB，不懒加载的话开页就得等半天。
 // 图还没补齐时 onerror 会把 <img> 换成一个占位框，不至于留一片破图。
 //
@@ -129,7 +131,7 @@ const PAGE = `<!doctype html>
     <div class="vb">
       <div class="path">设置 → 顶部你的名字（Apple 账户）<br>→ 媒体与购买项目 → 退出登录</div>
       <div class="shot" style="margin-bottom:0">
-        <img src="/tutorial/s1a-signout-new.jpg" alt="iOS 26.4 及以上退出方式" loading="lazy" onerror="ph(this)">
+        <img src="/tutorial/s1a-signout-new.jpg?v=__ASSETV__" alt="iOS 26.4 及以上退出方式" loading="lazy" onerror="ph(this)">
       </div>
     </div>
   </div>
@@ -139,7 +141,7 @@ const PAGE = `<!doctype html>
     <div class="vb">
       <div class="path">打开 App Store → 右上角头像<br>→ 一直往下滑到最底 → 退出登录</div>
       <div class="shot" style="margin-bottom:0">
-        <img src="/tutorial/s1b-signout-old.jpg" alt="旧版本退出方式" loading="lazy" onerror="ph(this)">
+        <img src="/tutorial/s1b-signout-old.jpg?v=__ASSETV__" alt="旧版本退出方式" loading="lazy" onerror="ph(this)">
       </div>
     </div>
   </div>
@@ -165,7 +167,7 @@ const PAGE = `<!doctype html>
   </ol>
 
   <div class="shot">
-    <img src="/tutorial/s1c-skip2fa.jpg" alt="跳过双重认证" loading="lazy" onerror="ph(this)">
+    <img src="/tutorial/s1c-skip2fa.jpg?v=__ASSETV__" alt="跳过双重认证" loading="lazy" onerror="ph(this)">
     <div class="cap">左边先点「其他选项」，右边再点「不升级」</div>
   </div>
 
@@ -191,31 +193,31 @@ const PAGE = `<!doctype html>
     装完描述文件不会自动跳过去，得自己翻下去。这个开关没开，解密就是不生效的。
   </div>
   <div class="grid">
-    <div class="g"><img src="/tutorial/s3-01.jpg" alt="1" loading="lazy" onerror="ph(this)"><div class="cap"><i>1</i>底部「配置」栏，先切到这份配置让它打勾，再点右边的 ⓘ</div></div>
-    <div class="g"><img src="/tutorial/s3-02.jpg" alt="2" loading="lazy" onerror="ph(this)"><div class="cap"><i>2</i>找到「HTTPS 解密」，点进去</div></div>
-    <div class="g"><img src="/tutorial/s3-03.jpg" alt="3" loading="lazy" onerror="ph(this)"><div class="cap"><i>3</i>把最上面的「HTTPS 解密」开关打开</div></div>
-    <div class="g"><img src="/tutorial/s3-04.jpg" alt="4" loading="lazy" onerror="ph(this)"><div class="cap"><i>4</i>开关一打开会自己弹出「证书」页，点「安装证书」</div></div>
-    <div class="g"><img src="/tutorial/s3-05.jpg" alt="5" loading="lazy" onerror="ph(this)"><div class="cap"><i>5</i>弹「正尝试下载配置描述文件」，点<b>允许</b></div></div>
-    <div class="g"><img src="/tutorial/s3-06.jpg" alt="6" loading="lazy" onerror="ph(this)"><div class="cap"><i>6</i>提示「已下载描述文件」，点<b>关闭</b></div></div>
-    <div class="g"><img src="/tutorial/s3-07.jpg" alt="7" loading="lazy" onerror="ph(this)"><div class="cap"><i>7</i>回系统「设置 → 通用 → VPN 与设备管理」</div></div>
-    <div class="g"><img src="/tutorial/s3-08.jpg" alt="8" loading="lazy" onerror="ph(this)"><div class="cap"><i>8</i>点「已下载的描述文件」里的 Shadowrocket</div></div>
-    <div class="g"><img src="/tutorial/s3-09.jpg" alt="9" loading="lazy" onerror="ph(this)"><div class="cap"><i>9</i>右上角「安装」，要输锁屏密码</div></div>
-    <div class="g"><img src="/tutorial/s3-10.jpg" alt="10" loading="lazy" onerror="ph(this)"><div class="cap"><i>10</i>警告页再点一次右上角「安装」</div></div>
-    <div class="g"><img src="/tutorial/s3-11.jpg" alt="11" loading="lazy" onerror="ph(this)"><div class="cap"><i>11</i>底部弹窗再点一次「安装」</div></div>
-    <div class="g"><img src="/tutorial/s3-12.jpg" alt="12" loading="lazy" onerror="ph(this)"><div class="cap"><i>12</i>显示「已安装描述文件」，点右上角「完成」</div></div>
-    <div class="g"><img src="/tutorial/s3-13.jpg" alt="13" loading="lazy" onerror="ph(this)"><div class="cap"><i>13</i>回「设置 → 通用 → 关于本机」</div></div>
-    <div class="g"><img src="/tutorial/s3-14.jpg" alt="14" loading="lazy" onerror="ph(this)"><div class="cap"><i>14</i><b style="color:var(--red)">最容易漏</b>：一直滑到<b>最底部</b>，点「证书信任设置」</div></div>
-    <div class="g"><img src="/tutorial/s3-15.jpg" alt="15" loading="lazy" onerror="ph(this)"><div class="cap"><i>15</i>把 Shadowrocket 那一项的开关打开</div></div>
-    <div class="g"><img src="/tutorial/s3-16.jpg" alt="16" loading="lazy" onerror="ph(this)"><div class="cap"><i>16</i>弹根证书警告，点「继续」</div></div>
-    <div class="g"><img src="/tutorial/s3-17.jpg" alt="17" loading="lazy" onerror="ph(this)"><div class="cap"><i>17</i>回到小火箭，左上角 ✕ 关掉这个空白页</div></div>
-    <div class="g"><img src="/tutorial/s3-18.jpg" alt="18" loading="lazy" onerror="ph(this)"><div class="cap"><i>18</i>证书这里变成「<b>系统已信任</b>」，点右上角 ✓</div></div>
-    <div class="g"><img src="/tutorial/s3-19.jpg" alt="19" loading="lazy" onerror="ph(this)"><div class="cap"><i>19</i>确认「HTTPS 解密」开关是开的，点右上角 ✓ 保存</div></div>
-    <div class="g"><img src="/tutorial/s3-20.jpg" alt="20" loading="lazy" onerror="ph(this)"><div class="cap"><i>20</i>左上角返回，解密就配好了</div></div>
+    <div class="g"><img src="/tutorial/s3-01.jpg?v=__ASSETV__" alt="1" loading="lazy" onerror="ph(this)"><div class="cap"><i>1</i>底部「配置」栏，先切到这份配置让它打勾，再点右边的 ⓘ</div></div>
+    <div class="g"><img src="/tutorial/s3-02.jpg?v=__ASSETV__" alt="2" loading="lazy" onerror="ph(this)"><div class="cap"><i>2</i>找到「HTTPS 解密」，点进去</div></div>
+    <div class="g"><img src="/tutorial/s3-03.jpg?v=__ASSETV__" alt="3" loading="lazy" onerror="ph(this)"><div class="cap"><i>3</i>把最上面的「HTTPS 解密」开关打开</div></div>
+    <div class="g"><img src="/tutorial/s3-04.jpg?v=__ASSETV__" alt="4" loading="lazy" onerror="ph(this)"><div class="cap"><i>4</i>开关一打开会自己弹出「证书」页，点「安装证书」</div></div>
+    <div class="g"><img src="/tutorial/s3-05.jpg?v=__ASSETV__" alt="5" loading="lazy" onerror="ph(this)"><div class="cap"><i>5</i>弹「正尝试下载配置描述文件」，点<b>允许</b></div></div>
+    <div class="g"><img src="/tutorial/s3-06.jpg?v=__ASSETV__" alt="6" loading="lazy" onerror="ph(this)"><div class="cap"><i>6</i>提示「已下载描述文件」，点<b>关闭</b></div></div>
+    <div class="g"><img src="/tutorial/s3-07.jpg?v=__ASSETV__" alt="7" loading="lazy" onerror="ph(this)"><div class="cap"><i>7</i>回系统「设置 → 通用 → VPN 与设备管理」</div></div>
+    <div class="g"><img src="/tutorial/s3-08.jpg?v=__ASSETV__" alt="8" loading="lazy" onerror="ph(this)"><div class="cap"><i>8</i>点「已下载的描述文件」里的 Shadowrocket</div></div>
+    <div class="g"><img src="/tutorial/s3-09.jpg?v=__ASSETV__" alt="9" loading="lazy" onerror="ph(this)"><div class="cap"><i>9</i>右上角「安装」，要输锁屏密码</div></div>
+    <div class="g"><img src="/tutorial/s3-10.jpg?v=__ASSETV__" alt="10" loading="lazy" onerror="ph(this)"><div class="cap"><i>10</i>警告页再点一次右上角「安装」</div></div>
+    <div class="g"><img src="/tutorial/s3-11.jpg?v=__ASSETV__" alt="11" loading="lazy" onerror="ph(this)"><div class="cap"><i>11</i>底部弹窗再点一次「安装」</div></div>
+    <div class="g"><img src="/tutorial/s3-12.jpg?v=__ASSETV__" alt="12" loading="lazy" onerror="ph(this)"><div class="cap"><i>12</i>显示「已安装描述文件」，点右上角「完成」</div></div>
+    <div class="g"><img src="/tutorial/s3-13.jpg?v=__ASSETV__" alt="13" loading="lazy" onerror="ph(this)"><div class="cap"><i>13</i>回「设置 → 通用 → 关于本机」</div></div>
+    <div class="g"><img src="/tutorial/s3-14.jpg?v=__ASSETV__" alt="14" loading="lazy" onerror="ph(this)"><div class="cap"><i>14</i><b style="color:var(--red)">最容易漏</b>：一直滑到<b>最底部</b>，点「证书信任设置」</div></div>
+    <div class="g"><img src="/tutorial/s3-15.jpg?v=__ASSETV__" alt="15" loading="lazy" onerror="ph(this)"><div class="cap"><i>15</i>把 Shadowrocket 那一项的开关打开</div></div>
+    <div class="g"><img src="/tutorial/s3-16.jpg?v=__ASSETV__" alt="16" loading="lazy" onerror="ph(this)"><div class="cap"><i>16</i>弹根证书警告，点「继续」</div></div>
+    <div class="g"><img src="/tutorial/s3-17.jpg?v=__ASSETV__" alt="17" loading="lazy" onerror="ph(this)"><div class="cap"><i>17</i>回到小火箭，左上角 ✕ 关掉这个空白页</div></div>
+    <div class="g"><img src="/tutorial/s3-18.jpg?v=__ASSETV__" alt="18" loading="lazy" onerror="ph(this)"><div class="cap"><i>18</i>证书这里变成「<b>系统已信任</b>」，点右上角 ✓</div></div>
+    <div class="g"><img src="/tutorial/s3-19.jpg?v=__ASSETV__" alt="19" loading="lazy" onerror="ph(this)"><div class="cap"><i>19</i>确认「HTTPS 解密」开关是开的，点右上角 ✓ 保存</div></div>
+    <div class="g"><img src="/tutorial/s3-20.jpg?v=__ASSETV__" alt="20" loading="lazy" onerror="ph(this)"><div class="cap"><i>20</i>左上角返回，解密就配好了</div></div>
   </div>
   <div class="hint" style="text-align:left;margin:8px 0 0">图看不清？点一下可以放大。</div>
 
   <div class="shot">
-    <img src="/tutorial/s3-21.jpg" alt="21" loading="lazy" onerror="ph(this)">
+    <img src="/tutorial/s3-21.jpg?v=__ASSETV__" alt="21" loading="lazy" onerror="ph(this)">
     <div class="cap"><i>21</i>回首页，把最上面那个开关打开。会弹一次「允许添加 VPN 配置」，点允许。到这儿就全装完了</div>
   </div>
   <div class="warn">
@@ -237,7 +239,7 @@ const PAGE = `<!doctype html>
   </div>
 
   <div class="shot">
-    <img src="/tutorial/s4-pick.jpg" alt="选点页用法" loading="lazy" onerror="ph(this)">
+    <img src="/tutorial/s4-pick.jpg?v=__ASSETV__" alt="选点页用法" loading="lazy" onerror="ph(this)">
     <div class="cap"><i class="r">1</i>输入地名，点「搜」　<i class="r">2</i><b>在地图上点一下</b>，蓝色标记落到你要的位置　<i class="r">3</i>点「保存定位」</div>
   </div>
 
@@ -248,7 +250,7 @@ const PAGE = `<!doctype html>
     iOS 会把上一次算出来的位置缓存住，不刷这一下，App 里看到的还是旧位置。<b class="i">每次改点都要做。</b>
   </div>
   <div class="shot">
-    <img src="/tutorial/fix-loccache.jpg" alt="刷新系统定位缓存" loading="lazy" onerror="ph(this)">
+    <img src="/tutorial/fix-loccache.jpg?v=__ASSETV__" alt="刷新系统定位缓存" loading="lazy" onerror="ph(this)">
     <div class="cap"><i class="r">4</i>设置 → 隐私与安全性 → 定位服务，关掉再打开</div>
   </div>
 </div>

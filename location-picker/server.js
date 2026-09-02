@@ -340,6 +340,28 @@ function originOf(req) {
 const TUTORIAL_DIR = path.join(__dirname, "tutorial");
 const IMG_TYPES = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
 
+// 图片缓存七天，但文件名是固定的 —— 换了图内容，浏览器还是拿本地那份旧的，
+// 用户看到的教程可以永远停在旧版本，而且没有任何报错。所以 URL 上必须带内容版本：
+// 启动时把 tutorial/ 里所有文件哈希一遍，塞进 help 页的 <img src> 查询串。
+// 内容一改哈希就变，URL 跟着变，缓存自然失效；内容没改则命中缓存，一次不多下。
+// 只算一次，528KB 全读一遍大概 2ms，比每次请求发 ETag 让客户端来回问一趟划算。
+// serveTutorial 用的是 pathname，查询串它根本不看，所以这边加参数不影响取图。
+function tutorialVersion() {
+  try {
+    const h = crypto.createHash("sha256");
+    for (const name of fs.readdirSync(TUTORIAL_DIR).sort()) {
+      if (!IMG_TYPES[path.extname(name).toLowerCase()]) continue;
+      h.update(name);
+      h.update(fs.readFileSync(path.join(TUTORIAL_DIR, name)));
+    }
+    return h.digest("hex").slice(0, 8);
+  } catch (e) {
+    // 目录缺失不该让服务起不来：退回启动时间，至少每次部署会变一次
+    return String(Date.now().toString(36));
+  }
+}
+const HELP_HTML = helpPage.PAGE.split("__ASSETV__").join(tutorialVersion());
+
 function serveTutorial(pathname, req, res) {
   const name = pathname.slice("/tutorial/".length);
   if (!/^[A-Za-z0-9._-]+$/.test(name) || name.indexOf("..") >= 0) {
@@ -515,7 +537,7 @@ function handler(req, res) {
       res.writeHead(302, { Location: "/?token=" + encodeURIComponent(helpRow.token) });
       return res.end();
     }
-    return sendGz(req, res, 200, "text/html; charset=utf-8", helpPage.PAGE);
+    return sendGz(req, res, 200, "text/html; charset=utf-8", HELP_HTML);
   }
 
   // ---- 教程用的截图 ----
