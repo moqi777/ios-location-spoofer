@@ -1,0 +1,19 @@
+location-picker/help-page.js
+  s_7a9fa0b967f219::t_2f2e26da19b67d 48-52,145-147,150-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "f25798a6469e3bb7f48c590b9c14a4ac4f864c2a",
+  "prompts": {},
+  "sessions": {
+    "s_7a9fa0b967f219": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15bf7c02-818b-4679-af94-9ad9e84534e1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "moqing <moqing@tsign.cn>"
+    }
+  }
+}
