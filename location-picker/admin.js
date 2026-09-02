@@ -169,7 +169,8 @@ function handle(req, res, url) {
         todaySet: h.set_hits || 0,
         todayErr: h.errors || 0,
         activatedAt: t.activated_at,
-        devices: db.listDevices(t.id)
+        guideOn: db.guideOn(t),
+        deviceCount: db.listDevices(t.id).length
       };
     });
     return json(res, 200, { origin: origin, tokens: rows }), true;
@@ -194,15 +195,22 @@ function handle(req, res, url) {
   if (mh && req.method === "GET") {
     return json(res, 200, {
       tokenId: Number(mh[1]),
-      rows: db.listHistory(Number(mh[1]), url.searchParams.get("limit"))
+      rows: db.listHistory(Number(mh[1]), url.searchParams.get("limit")),
+      devices: db.listDevices(Number(mh[1]))
     }), true;
   }
 
-  // ---- 重置引导：清掉激活标记，选点页的弹窗/卡片和教程页都会回来 ----
-  const mr = url.pathname.match(/^\/admin\/api\/tokens\/(\d+)\/reset-setup$/);
+  // ---- 安装引导开关 ----
+  const mr = url.pathname.match(/^\/admin\/api\/tokens\/(\d+)\/guide$/);
   if (mr && req.method === "POST") {
-    const ok = db.resetActivation(Number(mr[1]));
-    return json(res, ok ? 200 : 404, ok ? { ok: true } : { error: "not found" }), true;
+    const id = Number(mr[1]);
+    readBody(req).then(function (body) {
+      var on = false;
+      try { on = JSON.parse(body || "{}").on === true; } catch (e) { on = false; }
+      const ok = db.setGuide(id, on);
+      json(res, ok ? 200 : 404, ok ? { ok: true, on: on } : { error: "not found" });
+    }).catch(function () { json(res, 400, { error: "bad request" }); });
+    return true;
   }
 
   // ---- 改备注 / 停用启用 / 删除 ----

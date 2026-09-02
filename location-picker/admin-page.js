@@ -33,10 +33,21 @@ const PAGE = `<!doctype html>
   .grow{flex:1;min-width:0}
   .muted{color:var(--dim);font-size:13px}
   .addr{font-size:14px;margin:2px 0 4px;line-height:1.4}
-  .devs{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0 2px}
-  .dev{font-size:11px;padding:2px 7px;border-radius:99px;background:rgba(0,122,255,.12);
-    color:var(--blue);white-space:nowrap}
-  .dev i{font-style:normal;opacity:.6}
+  .row.grow2{margin:6px 0 2px}
+  .sw{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);flex-shrink:0}
+  .sw input{width:42px;height:25px;appearance:none;background:var(--line);border-radius:99px;
+    position:relative;transition:background .2s;flex-shrink:0}
+  .sw input:checked{background:var(--green)}
+  .sw input::after{content:"";position:absolute;top:2px;left:2px;width:21px;height:21px;
+    border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .sw input:checked::after{transform:translateX(17px)}
+  .sw input:disabled{opacity:.5}
+  .devrow{display:flex;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .devrow:last-child{border-bottom:0}
+  .devrow b{font-size:14px;font-weight:600}
+  .hsec{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.5px;
+    margin:2px 0 6px;text-transform:uppercase}
+  .hsec.gap{margin-top:18px}
   .mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;
     display:none;align-items:flex-end;justify-content:center}
   .mask.on{display:flex}
@@ -264,19 +275,18 @@ function renderTokens(list){
       '<div class="muted">最后活跃 ' + ago(t.lastSeenAt) +
         ' · 今日 拉取 ' + t.todayLoc + ' / 改点 ' + t.todaySet +
         (t.todayErr ? ' / <span class="st-bad">错误 ' + t.todayErr + '</span>' : '') + '</div>' +
-      (t.activatedAt
-        ? '<div class="muted">已装好 · ' + ago(t.activatedAt) + '首次生效</div>'
-        : '<div class="muted st-bad">未装好 —— 对方那边打开选点页会看到安装引导</div>') +
-      (t.devices && t.devices.length
-        ? '<div class="devs">' + t.devices.map(function(d){
-            return '<span class="dev" title="' + esc(d.ua) + '">' + esc(d.device) +
-                   ' <i>' + d.hits + '</i></span>';
-          }).join("") + '</div>'
-        : '') +
+      '<div class="row grow2">' +
+        '<div class="grow muted">' +
+          (t.activatedAt
+            ? '已装好 · ' + ago(t.activatedAt) + '首次生效'
+            : '<span class="st-bad">还没检测到安装</span>') +
+        '</div>' +
+        '<label class="sw"><span>安装引导</span>' +
+          '<input type="checkbox" data-a="guide"' + (t.guideOn ? ' checked' : '') + '></label>' +
+      '</div>' +
       '<div class="row" style="margin-top:10px">' +
         '<button class="act p" data-a="url">复制链接</button>' +
-        '<button class="act s" data-a="hist">历史</button>' +
-        '<button class="act s" data-a="reset">重置引导</button>' +
+        '<button class="act s" data-a="hist">记录</button>' +
         '<button class="act s" data-a="label">改备注</button>' +
         '<button class="act s" data-a="toggle">' + (live ? "停用" : "启用") + '</button>' +
         '<button class="act r" data-a="del">删除</button>' +
@@ -291,6 +301,23 @@ function loadTokens(){
   });
 }
 
+$("tokenlist").addEventListener("change", function(ev){
+  var box = ev.target.closest('input[data-a="guide"]');
+  if(!box) return;
+  var id = Number(box.closest(".card").dataset.id);
+  var on = box.checked;
+  box.disabled = true;
+  api("/admin/api/tokens/" + id + "/guide", {method:"POST", body:{on:on}})
+    .then(loadTokens)
+    .then(function(){
+      toast(on ? "已打开，对方刷新页面会看到安装引导" : "已关闭，对方不会再看到引导");
+    })
+    .catch(function(e){
+      box.checked = !on; box.disabled = false;   // 失败要把开关拨回去，别让界面撒谎
+      toast("操作失败：" + e.message);
+    });
+});
+
 $("tokenlist").addEventListener("click", function(ev){
   var btn = ev.target.closest("button[data-a]");
   if(!btn) return;
@@ -299,11 +326,7 @@ $("tokenlist").addEventListener("click", function(ev){
   if(!t) return;
   var a = btn.dataset.a;
   if(a === "url") return copy(originUrl + "/?token=" + t.token, "选点链接已复制");
-  if(a === "reset"){
-    if(!confirm("重置后，" + (t.label||"该用户") + " 打开选点页会重新看到安装引导和教程页。\\n换手机、误删配置时才需要这么做。继续？")) return;
-    return api("/admin/api/tokens/" + id + "/reset-setup", {method:"POST"})
-      .then(loadTokens).then(function(){ toast("已重置，对方刷新页面即可看到引导"); });
-  }
+
   if(a === "hist") return openHistory(t);
   if(a === "label"){
     var v = prompt("备注名", t.label || "");
@@ -331,17 +354,33 @@ $("hist-mask").addEventListener("click", function(ev){ if(ev.target === this) cl
 document.addEventListener("keydown", function(ev){ if(ev.key === "Escape") closeHistory(); });
 
 function openHistory(t){
-  $("hist-title").textContent = (t.label || mask(t.token)) + " 的改点历史";
+  $("hist-title").textContent = (t.label || mask(t.token)) + " 的记录";
   $("hist-body").innerHTML = '<div class="muted">加载中…</div>';
   $("hist-mask").classList.add("on");
   api("/admin/api/tokens/" + t.id + "/history?limit=200").then(function(d){
     var rows = d.rows || [];
+    var devs = d.devices || [];
+
+    var html = '<div class="hsec">用过的设备</div>';
+    html += devs.length
+      ? devs.map(function(v){
+          return '<div class="devrow"><b>' + esc(v.device) + '</b>' +
+            '<span class="muted">' + v.hits + ' 次 · 最近 ' + ago(v.last_seen) + '</span></div>';
+        }).join("")
+      : '<div class="muted">还没有记录。对方的小火箭或浏览器来取过坐标才会出现。</div>';
+    if(devs.length > 1){
+      html += '<div class="muted" style="margin-top:6px">' +
+        '出现多台设备不一定是共享 —— 浏览器打开选点页也会记一条。' +
+        '要留意的是<b>两个不同机型的小火箭</b>。</div>';
+    }
+
+    html += '<div class="hsec gap">改点历史</div>';
     if(!rows.length){
-      $("hist-body").innerHTML = '<div class="muted">还没有改点记录。' +
+      $("hist-body").innerHTML = html + '<div class="muted">还没有改点记录。' +
         '每次在选点页保存一个<b>新</b>坐标才会留一条；只拨伪造/真实开关不算。</div>';
       return;
     }
-    $("hist-body").innerHTML = rows.map(function(r, i){
+    $("hist-body").innerHTML = html + rows.map(function(r, i){
       return '<div class="hitem' + (i === 0 ? ' now' : '') + '">' +
         '<div class="ht">' + fmtTime(r.ts) + (i === 0 ? ' · 当前位置' : '') + '</div>' +
         '<div class="ha">' + (r.address

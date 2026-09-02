@@ -224,6 +224,12 @@ const MIGRATIONS = [
         PRIMARY KEY (token_id, device)
       );
     `);
+  },
+  // v6：安装引导的手动开关。activated_at 是自动检测的「事实」，只读；
+  //     guide_off 是管理员的「意愿」——比如对方压根不用小火箭、或者你已经当面帮他装好了，
+  //     就该能直接把引导关掉，而不是伪造一个激活时间去骗前端。两者分开，卡片才不会说谎。
+  function (d) {
+    d.exec("ALTER TABLE tokens ADD COLUMN guide_off INTEGER NOT NULL DEFAULT 0");
   }
 ];
 
@@ -289,7 +295,7 @@ function prep(sql) {
 
 function reloadTokens() {
   tokenCache = db
-    .prepare("SELECT id, token, label, status, activated_at FROM tokens ORDER BY id")
+    .prepare("SELECT id, token, label, status, activated_at, guide_off FROM tokens ORDER BY id")
     .all();
 }
 
@@ -334,7 +340,7 @@ function migrateFromEnv(envTokens, dataDir, dataBase) {
 // ---- token ----
 function listTokens() {
   return db
-    .prepare("SELECT id, token, label, status, created_at, last_seen_at, activated_at FROM tokens ORDER BY id")
+    .prepare("SELECT id, token, label, status, created_at, last_seen_at, activated_at, guide_off FROM tokens ORDER BY id")
     .all();
 }
 
@@ -389,9 +395,18 @@ function markActivated(tokenId, ts) {
   return r.changes > 0;
 }
 
-// 清掉激活标记，引导弹窗和教程页会重新出现。换手机、误删配置时用。
-function resetActivation(tokenId) {
-  const r = prep("UPDATE tokens SET activated_at = NULL WHERE id = ?").run(Number(tokenId));
+// 引导到底显不显示：没装好、且管理员没手动关掉。选点页、/help、管理台开关都用这一个判断。
+function guideOn(row) {
+  return !!row && row.activated_at == null && !row.guide_off;
+}
+
+// 管理台那个开关。开 = 让对方重新看到引导（换手机、误删配置时用），
+// 顺手把自动检测的激活标记也清掉，否则开了也白开。
+// 关 = 别再打扰他了，不管有没有检测到激活。
+function setGuide(tokenId, on) {
+  const r = on
+    ? prep("UPDATE tokens SET guide_off = 0, activated_at = NULL WHERE id = ?").run(Number(tokenId))
+    : prep("UPDATE tokens SET guide_off = 1 WHERE id = ?").run(Number(tokenId));
   if (r.changes) reloadTokens();
   return r.changes > 0;
 }
@@ -1053,7 +1068,8 @@ module.exports = {
   deviceLabel: deviceLabel,
   isSpoofClient: isSpoofClient,
   markActivated: markActivated,
-  resetActivation: resetActivation,
+  setGuide: setGuide,
+  guideOn: guideOn,
   listDevices: listDevices,
   createToken: createToken,
   updateToken: updateToken,

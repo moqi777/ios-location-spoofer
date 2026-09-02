@@ -511,7 +511,7 @@ function handler(req, res) {
     var helpRow = resolveToken(token, res);
     if (!helpRow || !requireActive(helpRow, res)) return;
     res._tokenId = helpRow.id;
-    if (helpRow.activated_at) {
+    if (!db.guideOn(helpRow)) {
       res.writeHead(302, { Location: "/?token=" + encodeURIComponent(helpRow.token) });
       return res.end();
     }
@@ -726,7 +726,7 @@ function handler(req, res) {
     var pRow = resolveToken(token, res);
     if (!pRow || !requireActive(pRow, res)) return;
     return sendGz(req, res, 200, "text/html; charset=utf-8",
-      PAGE.replace("__ACTIVATED__", pRow.activated_at ? "true" : "false"));
+      PAGE.replace("__SETUP_DONE__", db.guideOn(pRow) ? "false" : "true"));
   }
 
   return send(res, 404, "text/plain", "not found");
@@ -874,7 +874,7 @@ const PAGE = `<!doctype html>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
 var AMAP_ON = ${AMAP_KEY ? "true" : "false"};   // 服务端有没有配 AMAP_KEY，决定搜索走高德还是 Nominatim
-var ACTIVATED = __ACTIVATED__;   // 服务端渲染时填：这个 token 有没有见过真实客户端来取坐标
+var SETUP_DONE = __SETUP_DONE__;   // 服务端渲染时填：装好了、或者管理员把引导关了
 var IN_WECHAT = /MicroMessenger/i.test(navigator.userAgent);
 
 // ---------- 首次引导 ----------
@@ -886,7 +886,7 @@ function importHref(){ return "shadowrocket://install?config=" + encodeURICompon
 function helpHref(){ return "/help?token=" + encodeURIComponent(token); }
 
 function renderSetup(){
-  if(ACTIVATED || !token) return;
+  if(SETUP_DONE || !token) return;
   $("setup").innerHTML =
     '<div class="setup"><b>⚠️ 还没装好，现在改的位置不会生效</b>' +
     '按教程装一次，之后就不用管了。' +
@@ -894,7 +894,7 @@ function renderSetup(){
 }
 
 function showFirstRun(){
-  if(ACTIVATED || !token) return;
+  if(SETUP_DONE || !token) return;
   var key = "lp_seen_" + token.slice(0, 8);
   try { if(localStorage.getItem(key)) return; localStorage.setItem(key, "1"); }
   catch(e){ /* 隐私模式下 localStorage 会抛，那就每次都弹，总比不弹好 */ }

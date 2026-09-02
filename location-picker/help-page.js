@@ -34,6 +34,8 @@ const PAGE = `<!doctype html>
   .danger{background:#ffeceb;border:1px solid #ffc9c5;color:#a3231a;
     border-radius:9px;padding:10px 12px;margin:10px 0;font-size:14px}
   .warn b,.danger b{display:block;margin-bottom:2px}
+  .disc{margin:8px 0 2px;padding:9px 11px;border-radius:8px;background:#f7f7f9;
+    border:1px solid var(--line);color:var(--dim);font-size:12.5px;line-height:1.55}
   a{color:var(--blue)}
   .shot{margin:10px 0;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
   .shot img{display:block;width:100%;height:auto}
@@ -63,9 +65,12 @@ const PAGE = `<!doctype html>
   <ol>
     <li>买一个外区 Apple ID。两个渠道，自己挑：
       <ul>
-        <li><a href="https://shop66.hi-taobao.top/products/shadowrocket-shared-id-auto-delivery" target="_blank" rel="noopener">贵一点，有售后</a></li>
-        <li><a href="https://www.yuguoid.com/" target="_blank" rel="noopener">便宜，无售后</a></li>
+        <li><a href="https://shop66.hi-taobao.top/products/shadowrocket-shared-id-auto-delivery" target="_blank" rel="noopener">贵一点，卖家提供售后</a></li>
+        <li><a href="https://www.yuguoid.com/" target="_blank" rel="noopener">便宜，卖家明确不提供售后</a></li>
       </ul>
+      <div class="disc">以上两个是<b>第三方平台</b>，和本服务没有任何关系。链接只是方便你找，
+        我不参与交易、不经手你的付款、也不了解他们的经营情况。所谓「售后」指的是<b>那家平台自己承诺的售后</b>，
+        找他们，不是找我。账号买卖属于第三方与你之间的事，买之前请自行判断，风险自负。</div>
     </li>
     <li>打开 <b>设置 → 顶部你的头像 → 媒体与购买项目 → 退出登录</b></li>
     <li>打开 <b>App Store</b>，登录刚买的外区账号，搜索并下载 Shadowrocket</li>
