@@ -1,0 +1,22 @@
+location-picker/tutorial/README.md
+  s_7a9fa0b967f219::t_a07a91307507bf 3,5-8,10-11,13-42
+location-picker/help-page.js
+  s_7a9fa0b967f219::t_157b784257b32a 3,7,9-12,21,36,44,48-54,58,62-67,69,79-88,94,101-102,104,113-114,116-143,145-165,171,173-181,188-226,228-257,262-264,279-289,305
+  s_7a9fa0b967f219::t_76e2ab18b8e7ed 59-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "242012f02fa92ca5c620f4472fd9845bb9462de0",
+  "prompts": {},
+  "sessions": {
+    "s_7a9fa0b967f219": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15bf7c02-818b-4679-af94-9ad9e84534e1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "moqing <moqing@tsign.cn>"
+    }
+  }
+}
