@@ -381,6 +381,15 @@ function serveTutorial(pathname, req, res) {
   });
 }
 
+// 备注是管理台里手输的自由文本，塞进 HTML 前必须转义。
+// 注意后面填模板用的是 split/join 而不是 String.replace —— replace 的字符串
+// 替换值里 $& / $' 这些是有特殊含义的，备注里真出现就会把匹配到的内容再插一遍。
+function htmlEscape(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
 function send(res, code, type, body) {
   res.writeHead(code, {
     "Content-Type": type,
@@ -757,8 +766,13 @@ function handler(req, res) {
   if (url.pathname === "/" && req.method === "GET") {
     var pRow = resolveToken(token, res);
     if (!pRow || !requireActive(pRow, res)) return;
-    return sendGz(req, res, 200, "text/html; charset=utf-8",
-      PAGE.replace("__SETUP_DONE__", db.guideOn(pRow) ? "false" : "true"));
+    // 备注为空就整条不渲染，别留一条空的灰边
+    var who = htmlEscape(pRow.label || "");
+    var html = PAGE
+      .split("__SETUP_DONE__").join(db.guideOn(pRow) ? "false" : "true")
+      .split("__WHOBAR__").join(who ? '<div class="who">当前页面：<b>' + who + '</b></div>' : "")
+      .split("__TITLE__").join(who ? "定位选点 · " + who : "定位选点");
+    return sendGz(req, res, 200, "text/html; charset=utf-8", html);
   }
 
   return send(res, 404, "text/plain", "not found");
@@ -829,10 +843,14 @@ const PAGE = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>定位选点</title>
+<title>__TITLE__</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+  /* 顶部备注条：管理员手上有好几个链接，不标一下分不清打开的是谁的 */
+  .who{padding:6px 10px;background:#f2f2f7;border-bottom:1px solid #e2e2e2;
+    font-size:13px;color:#6b6b70;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .who b{color:#1c1c1e;font-weight:600}
   .bar{padding:8px;display:flex;gap:6px;box-sizing:border-box}
   .bar input{flex:1;padding:10px;font-size:16px;border:1px solid #ccc;border-radius:8px}
   .bar button{padding:10px 14px;font-size:16px;border:0;border-radius:8px;background:#007aff;color:#fff}
@@ -880,6 +898,7 @@ const PAGE = `<!doctype html>
 </style>
 </head>
 <body>
+__WHOBAR__
 <div id="setup"></div>
 <div class="bar">
   <input id="q" placeholder="搜地名，回车列出候选（只预览，不改定位）">
