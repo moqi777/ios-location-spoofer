@@ -279,7 +279,11 @@ function renderTokens(list){
         '<div class="grow muted">' +
           (t.activatedAt
             ? '已装好 · ' + ago(t.activatedAt) + '首次生效'
-            : '<span class="st-bad">还没检测到安装</span>') +
+            // 红色的含义是「待处理」。管理员已经把引导关掉 = 明确表示知道了、不用管，
+            // 这时候还红着就成了误报。事实照说，但语气跟着他的操作走。
+            : (t.guideOn
+                ? '<span class="st-bad">还没检测到安装</span>'
+                : '未检测到安装 · 引导已手动关闭')) +
         '</div>' +
         '<label class="sw"><span>安装引导</span>' +
           '<input type="checkbox" data-a="guide"' + (t.guideOn ? ' checked' : '') + '></label>' +
