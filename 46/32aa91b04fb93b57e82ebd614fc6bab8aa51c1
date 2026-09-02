@@ -1,0 +1,30 @@
+location-picker/admin.js
+  s_7a9fa0b967f219::t_097d4a3f56b9dc 172-173,198-199,203-204,206-213
+location-picker/server.js
+  s_7a9fa0b967f219::t_097d4a3f56b9dc 514
+  s_7a9fa0b967f219::t_0d05bcce4a1c22 729,877,889,897
+location-picker/db.js
+  s_7a9fa0b967f219::t_7f2ab624ddc6eb 227-232,298,343,398-409,1071-1072
+location-picker/help-page.js
+  s_7a9fa0b967f219::t_b2afe52776bea2 37-38,68-69,71-73
+location-picker/admin-page.js
+  s_7a9fa0b967f219::t_2fe2bc6bf5fa25 357,362-377,379,383
+  s_7a9fa0b967f219::t_e29591716ffa51 36-50,304-319
+  s_7a9fa0b967f219::t_cdb555ee26d707 278-286,289,329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "4632aa91b04fb93b57e82ebd614fc6bab8aa51c1",
+  "prompts": {},
+  "sessions": {
+    "s_7a9fa0b967f219": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15bf7c02-818b-4679-af94-9ad9e84534e1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "moqing <moqing@tsign.cn>"
+    }
+  }
+}
