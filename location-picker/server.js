@@ -536,6 +536,13 @@ function handler(req, res) {
   // ---- 一键配置：朋友点一次就把节点规则、[Script]、MITM 域名全装好 ----
   // /conf 是旧路径，已经发出去的配置里 update-url 还指着它，得一直留着；
   // 新的用 /ios-location-spoofer，这样小火箭导进去的文件名才是人话。
+  //
+  // 这里故意不跟着 guideOn 一起拦（/help 拦了，这里不拦），两个原因：
+  //  1. bundle.js 会把配置里的 update-url 改写成指向本路由，小火箭平时会自己
+  //     回来拉。一拦，所有已经装好的人下次自动更新就 403，而且再也收不到
+  //     脚本或域名的后续修改 —— 等于把更新链路砸了。
+  //  2. 拦了也防不住转发：token 才是唯一凭证，拿到链接的人照样能开选点页改坐标，
+  //     而选点页是产品本身，没法拦。防分享要靠管理台的设备记录去看，不是靠这里。
   if ((url.pathname === bundle.CONF_PATH || url.pathname === "/conf") && req.method === "GET") {
     var confOwner = resolveToken(token, res);
     if (!confOwner || !requireActive(confOwner, res)) return;

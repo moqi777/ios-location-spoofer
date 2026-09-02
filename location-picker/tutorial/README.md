@@ -22,20 +22,30 @@ help-page.js 引用了下面这些。缺哪张页面就显示「（示意图待�
   s3-10.jpg  警告页再点安装             s3-20.jpg  返回，解密配好
   s3-21.jpg  回首页把总开关打开（原 s2-enable.jpg）
 
-第四步 / 常见问题
-  s4-pick.jpg           选点页：搜地址 → 选地图源 → 保存定位
-  fix-loccache.jpg      设置 → 定位服务，关掉再打开（清系统定位缓存）
+第四步 开始改定位
+  s4-pick.jpg           选点页：① 搜地名 ② 在地图上点一下标点 ③ 保存定位
+                        （①②③ 是 badge.swift 画上去的，不是原截图自带的）
+  fix-loccache.jpg      ④ 设置 → 隐私与安全性 → 定位服务，关掉再打开
 
 ---
 
 加图前先压一遍。当前这批是 460px 宽、JPEG 质量 70，单张 10~38 KB，26 张共 528 KB：
 
-  sips -s format jpeg -s formatOptions 70 -Z 460 原图.png --out 目标.jpg
+  sips -s format jpeg -s formatOptions 70 --resampleWidth 460 原图.png --out 目标.jpg
 
 裁剪（sips 的 --cropOffset 是左上角绝对坐标，但**宽度等于原图宽度时会被忽略、
 退回居中裁剪**，所以宽度要比原图小至少 2px）：
 
   sips -c 高 宽 --cropOffset Y X 原图.png --out 目标.png
+
+按宽度缩放要用 --resampleWidth，-Z 限制的是最长边，竖图会被缩成很窄一条：
+
+  sips --resampleWidth 640 原图.png --out 目标.png
+
+往图上画序号圆点用 badge.swift（截图本身没标顺序时）：
+
+  swiftc -O badge.swift -o badge
+  ./badge 输入.png 输出.png 17 "x,y,1" "x,y,2" ...    # 半径 17，y 从顶部算
 
 **换图必须先过一遍隐私**。这批里有两张原图带敏感信息，已经靠裁剪去掉了：
   s3-14  原图是「关于本机」整页，带 IMEI / ICCID / MEID —— 只保留最底一行

@@ -69,6 +69,7 @@ const PAGE = `<!doctype html>
   .g .cap i,.shot .cap i{font-style:normal;display:inline-flex;align-items:center;justify-content:center;
     width:17px;height:17px;border-radius:50%;background:var(--blue);color:#fff;
     font-size:11px;font-weight:700;margin-right:4px;vertical-align:-3px}
+  .cap i.r{background:var(--red)}
   .ph{padding:26px 12px;text-align:center;color:var(--dim);font-size:13px;background:#fafafa}
   .cta{display:block;text-align:center;padding:14px;border-radius:11px;background:var(--green);
     color:#fff;font-weight:700;font-size:17px;text-decoration:none;margin:14px 0 6px}
@@ -193,7 +194,7 @@ const PAGE = `<!doctype html>
     <div class="g"><img src="/tutorial/s3-01.jpg" alt="1" loading="lazy" onerror="ph(this)"><div class="cap"><i>1</i>底部「配置」栏，先切到这份配置让它打勾，再点右边的 ⓘ</div></div>
     <div class="g"><img src="/tutorial/s3-02.jpg" alt="2" loading="lazy" onerror="ph(this)"><div class="cap"><i>2</i>找到「HTTPS 解密」，点进去</div></div>
     <div class="g"><img src="/tutorial/s3-03.jpg" alt="3" loading="lazy" onerror="ph(this)"><div class="cap"><i>3</i>把最上面的「HTTPS 解密」开关打开</div></div>
-    <div class="g"><img src="/tutorial/s3-04.jpg" alt="4" loading="lazy" onerror="ph(this)"><div class="cap"><i>4</i>往下滑到「证书」，点「安装证书」</div></div>
+    <div class="g"><img src="/tutorial/s3-04.jpg" alt="4" loading="lazy" onerror="ph(this)"><div class="cap"><i>4</i>开关一打开会自己弹出「证书」页，点「安装证书」</div></div>
     <div class="g"><img src="/tutorial/s3-05.jpg" alt="5" loading="lazy" onerror="ph(this)"><div class="cap"><i>5</i>弹「正尝试下载配置描述文件」，点<b>允许</b></div></div>
     <div class="g"><img src="/tutorial/s3-06.jpg" alt="6" loading="lazy" onerror="ph(this)"><div class="cap"><i>6</i>提示「已下载描述文件」，点<b>关闭</b></div></div>
     <div class="g"><img src="/tutorial/s3-07.jpg" alt="7" loading="lazy" onerror="ph(this)"><div class="cap"><i>7</i>回系统「设置 → 通用 → VPN 与设备管理」</div></div>
@@ -218,22 +219,37 @@ const PAGE = `<!doctype html>
     <div class="cap"><i>21</i>回首页，把最上面那个开关打开。会弹一次「允许添加 VPN 配置」，点允许。到这儿就全装完了</div>
   </div>
   <div class="warn">
-    <b>首页那一堆订阅不用管</b>
-    那是节点，跟改定位没关系 —— <b class="i">不订阅任何节点也能改定位</b>。
-    需要翻墙再找管理员要。
+    <b>顺便说一下小火箭是干嘛的</b>
+    它本行是个代理工具，我们只是借它的脚本功能来改定位 ——
+    <b class="i">不订阅任何节点也能改定位</b>，首页空着就行。
+    如果你还想拿它翻墙，那就得另外买机场订阅节点，<b class="i">找管理员买</b>，配好了直接能用。
   </div>
 </div>
 
 <div class="step">
   <h2><span class="n">4</span>开始改定位</h2>
-  <p class="why">回到选点页，搜地名 → 点一下地图 → 保存，就完事了。</p>
+  <p class="why">前面都是一次性的，以后每次改定位只用做这一步。</p>
+
+  <div class="warn">
+    <b>选点页在哪</b>
+    就是<b class="i">本页最下面</b>那个「都弄好了？回到选点页 →」按钮。
+    以后直接存管理员发你的那个链接，打开就是选点页。
+  </div>
+
   <div class="shot">
     <img src="/tutorial/s4-pick.jpg" alt="选点页用法" loading="lazy" onerror="ph(this)">
-    <div class="cap">① 搜地址 ② 选地图源 ③ 点「保存定位」</div>
+    <div class="cap"><i class="r">1</i>输入地名，点「搜」　<i class="r">2</i><b>在地图上点一下</b>，蓝色标记落到你要的位置　<i class="r">3</i>点「保存定位」</div>
   </div>
-  <div class="warn">
-    <b>改完最多等 5 分钟</b>
-    脚本本地会缓存 5 分钟，刚保存完立刻看可能还是上一个点。想立刻生效就把小火箭开关关了再开。
+
+  <div class="warn" style="background:#eaf5ff;border-color:#b9dbff;color:#0a4b9c">
+    <b>还没完，第 4 下最关键</b>
+    保存完<b class="i">一定要去把「定位服务」关掉再打开</b>：<br>
+    <b class="i">设置 → 隐私与安全性 → 定位服务</b>，开关关一下再开。<br>
+    iOS 会把上一次算出来的位置缓存住，不刷这一下，App 里看到的还是旧位置。<b class="i">每次改点都要做。</b>
+  </div>
+  <div class="shot">
+    <img src="/tutorial/fix-loccache.jpg" alt="刷新系统定位缓存" loading="lazy" onerror="ph(this)">
+    <div class="cap"><i class="r">4</i>设置 → 隐私与安全性 → 定位服务，关掉再打开</div>
   </div>
 </div>
 
@@ -242,16 +258,11 @@ const PAGE = `<!doctype html>
   <dl class="faq">
     <dt>保存了，但手机上的定位没变</dt>
     <dd>按顺序排查：<br>
-      1、小火箭首页那个总开关开了吗；<br>
-      2、第 3 步的<b>证书信任设置</b>开了吗（最常见）；<br>
-      3、等 5 分钟，或者把小火箭开关关了再开；<br>
-      4、还不行就清一下系统的定位缓存，见下图。</dd>
-    <dd>
-      <div class="shot">
-        <img src="/tutorial/fix-loccache.jpg" alt="清定位缓存" loading="lazy" onerror="ph(this)">
-        <div class="cap">设置 → 隐私与安全性 → 定位服务，关掉再打开</div>
-      </div>
-    </dd>
+      1、第 4 步那个「<b>定位服务</b>关掉再打开」做了吗（最常见，漏了就一直是旧位置）；<br>
+      2、小火箭首页那个总开关开了吗；<br>
+      3、第 3 步的<b>证书信任设置</b>开了吗；<br>
+      4、都做了还是旧的，等几分钟 —— 脚本本地也有 5 分钟缓存，
+        想立刻生效就把小火箭开关关了再开。</dd>
 
     <dt>在户外就不准，在室内才对</dt>
     <dd>这是原理限制。我们改的是苹果的 <b>Wi-Fi / 基站</b> 定位结果，
