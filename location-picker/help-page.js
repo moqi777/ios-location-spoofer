@@ -45,6 +45,11 @@ const PAGE = `<!doctype html>
     color:#fff;font-weight:700;font-size:17px;text-decoration:none;margin:14px 0 6px}
   .cta.off{background:#c7c7cc}
   .hint{color:var(--dim);font-size:13px;text-align:center}
+  .alt{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);font-size:13.5px;color:#444}
+  .alt b{color:#1c1c1e}
+  .copybtn{display:block;width:100%;margin-top:8px;padding:11px;border:1px solid var(--blue);
+    border-radius:9px;background:#fff;color:var(--blue);font-size:15px;font-weight:600}
+  .copybtn.done{background:var(--blue);color:#fff}
   .back{display:block;text-align:center;padding:13px;border-radius:11px;background:#fff;
     border:1px solid var(--line);color:var(--blue);text-decoration:none;font-weight:600;margin-top:18px}
   .wx{background:var(--red);color:#fff;border-radius:11px;padding:12px 14px;margin-bottom:14px;font-size:15px}
@@ -137,9 +142,38 @@ if(IN_WECHAT){
     '<div class="hint">右上角「⋯」→「在Safari中打开」</div>';
 } else {
   var url = location.origin + "/conf?token=" + encodeURIComponent(token);
+  // 一键导入靠的是 shadowrocket:// 这个自定义协议。手机上没装小火箭时，
+  // Safari 会报「网址无效」——它并不知道是「没有 App 认领这个协议」，只能这么说。
+  // 所以下面既要解释这句报错，也要给一条不依赖协议的备用路：复制链接手动粘贴。
   $("ctabox").innerHTML =
     '<a class="cta" href="shadowrocket://install?config=' + encodeURIComponent(url) + '">一键导入配置</a>' +
-    '<div class="hint">会跳到小火箭并提示「是否导入配置」，点确定即可</div>';
+    '<div class="hint">会跳到小火箭并提示「是否导入配置」，点确定即可</div>' +
+    '<div class="alt"><b>点了没反应，或者提示「网址无效」？</b><br>' +
+      '说明这台手机还没装小火箭 —— iOS 找不到能打开这个链接的 App，就会这么报。' +
+      '先回第一步把小火箭装上，再回来点。<br><br>' +
+      '装好了还是不行，就手动导入：复制下面的链接，打开小火箭 → 左上角 <b>+</b> → 粘贴。' +
+      '<button class="copybtn" id="copyconf">复制配置链接</button></div>';
+  $("copyconf").addEventListener("click", function(){
+    var b = this;
+    function done(){ b.textContent = "已复制，去小火箭粘贴"; b.className = "copybtn done"; }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done, fallback);
+    } else { fallback(); }
+    function fallback(){
+      // iOS 上 clipboard API 在非 https 或旧系统里会失败，退回选中文本让用户自己长按复制
+      var ta = document.createElement("textarea");
+      ta.value = url; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
+      document.body.removeChild(ta);
+      if(ok) done(); else {
+        b.outerHTML = '<div class="alt" style="border:0;padding-top:6px">' +
+          '复制失败，请长按选中这段地址：<br><span style="word-break:break-all;color:#007aff">' +
+          url.replace(/&/g,"&amp;").replace(/</g,"&lt;") + '</span></div>';
+      }
+    }
+  });
 }
 </script>
 </body>
