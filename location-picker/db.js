@@ -204,6 +204,26 @@ const MIGRATIONS = [
       "CREATE INDEX IF NOT EXISTS idx_lh_pending ON location_history(ts DESC)" +
       " WHERE address = '' AND tries < 3"
     );
+  },
+  // v5：激活状态 + 设备记录。
+  //  · activated_at：第一次有「非浏览器」客户端来拉 /loc.json 的时间。这个信号很硬 ——
+  //    脚本只有在 HTTPS 解密真的通了、模块真的跑起来之后才会来拉，所以它等价于
+  //    「这个人整套装好了」。选点页的引导弹窗/卡片和教程页都拿它当开关。
+  //  · token_devices：每个 token 见过哪些客户端。不从 logs 现算，因为日志三个月会被
+  //    归档删掉，而「这个 token 被几台设备用过」是要长期留着看的。
+  function (d) {
+    d.exec("ALTER TABLE tokens ADD COLUMN activated_at INTEGER");
+    d.exec(`
+      CREATE TABLE IF NOT EXISTS token_devices (
+        token_id   INTEGER NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
+        device     TEXT    NOT NULL,
+        ua         TEXT    NOT NULL DEFAULT '',
+        first_seen INTEGER NOT NULL,
+        last_seen  INTEGER NOT NULL,
+        hits       INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (token_id, device)
+      );
+    `);
   }
 ];
 
@@ -269,7 +289,7 @@ function prep(sql) {
 
 function reloadTokens() {
   tokenCache = db
-    .prepare("SELECT id, token, label, status FROM tokens ORDER BY id")
+    .prepare("SELECT id, token, label, status, activated_at FROM tokens ORDER BY id")
     .all();
 }
 
@@ -314,12 +334,82 @@ function migrateFromEnv(envTokens, dataDir, dataBase) {
 // ---- token ----
 function listTokens() {
   return db
-    .prepare("SELECT id, token, label, status, created_at, last_seen_at FROM tokens ORDER BY id")
+    .prepare("SELECT id, token, label, status, created_at, last_seen_at, activated_at FROM tokens ORDER BY id")
     .all();
 }
 
 function cachedTokens() {
   return tokenCache;
+}
+
+// ---- 设备识别 ----
+// 小火箭发请求时会把机型写进 UA，这是我们能拿到的最强指纹：
+//   Shadowrocket/3378 CFNetwork/1498.700.2 Darwin/23.6.0 iPhone15,2
+//   PacketTunnel/2301 CFNetwork/3860.700.1 Darwin/25.6.0        ← 这个客户端不报机型
+//   Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) ...  ← 只是浏览器打开了选点页
+// 只取「客户端 + 机型」这种稳定的部分：版本号一升级就变，拿它当指纹会天天误报。
+function deviceLabel(ua) {
+  const s = String(ua || "").trim();
+  if (!s) return "未知";
+
+  if (/^Mozilla\//.test(s)) {
+    const os = s.match(/iPhone OS (\d+)[_.](\d+)/);
+    const ver = os ? "iOS " + os[1] + "." + os[2] : (/Android/.test(s) ? "Android" : "浏览器");
+    if (/MicroMessenger/i.test(s)) return "微信 · " + ver;
+    if (/CriOS/.test(s)) return "Chrome · " + ver;
+    if (/iPhone|iPad/.test(s)) return "Safari · " + ver;
+    return "浏览器 · " + ver;
+  }
+
+  const client = (s.match(/^([A-Za-z][A-Za-z0-9_-]*)\//) || [])[1] || s.slice(0, 20);
+  const model = (s.match(/\b(iPhone|iPad|iPod|Watch)\d+,\d+\b/) || [])[0];
+  if (model) return client + " · " + model;
+  const darwin = (s.match(/Darwin\/(\d+)\.(\d+)/) || []);
+  if (darwin.length) return client + " · Darwin " + darwin[1] + "." + darwin[2];
+  return client;
+}
+
+// 「非浏览器客户端」= 脚本真的跑起来了。只有 HTTPS 解密通了、模块生效了，
+// 小火箭才会代表脚本来拉 /loc.json —— 所以这个信号等价于「整套装好了」。
+// 用排除法而不是白名单：Loon、Surge、Stash 这些别的客户端也该算数，
+// 但要把命令行工具排掉，否则我自己 curl 一下就把用户标成已激活了。
+function isSpoofClient(ua) {
+  const s = String(ua || "").trim();
+  if (!s) return false;
+  if (/^Mozilla\//.test(s)) return false;
+  if (/^(curl|wget|python|Go-http|okhttp|PostmanRuntime|node-fetch|axios)/i.test(s)) return false;
+  return true;
+}
+
+// 第一次见到真实客户端时打上激活时间戳。已经有值就不动 —— 记的是「首次」。
+function markActivated(tokenId, ts) {
+  const r = prep("UPDATE tokens SET activated_at = ? WHERE id = ? AND activated_at IS NULL")
+    .run(ts || Date.now(), Number(tokenId));
+  if (r.changes) reloadTokens();
+  return r.changes > 0;
+}
+
+// 清掉激活标记，引导弹窗和教程页会重新出现。换手机、误删配置时用。
+function resetActivation(tokenId) {
+  const r = prep("UPDATE tokens SET activated_at = NULL WHERE id = ?").run(Number(tokenId));
+  if (r.changes) reloadTokens();
+  return r.changes > 0;
+}
+
+function recordDevice(tokenId, device, ua, ts) {
+  prep(
+    "INSERT INTO token_devices (token_id, device, ua, first_seen, last_seen, hits)" +
+    " VALUES (?, ?, ?, ?, ?, 1)" +
+    " ON CONFLICT(token_id, device) DO UPDATE SET last_seen = excluded.last_seen," +
+    " hits = hits + 1, ua = excluded.ua"
+  ).run(Number(tokenId), String(device).slice(0, 60), String(ua || "").slice(0, 200), ts, ts);
+}
+
+function listDevices(tokenId) {
+  return prep(
+    "SELECT device, ua, first_seen, last_seen, hits FROM token_devices" +
+    " WHERE token_id = ? ORDER BY last_seen DESC"
+  ).all(Number(tokenId));
 }
 
 function createToken(label) {
@@ -522,6 +612,10 @@ function flushLogs() {
       const isSet = (e.path === "/set" || e.path === "/enable") && !isErr ? 1 : 0;
       if (isErr || isLoc || isSet) {
         bumpDaily.run(dayKey(e.ts), e.tokenId || 0, isLoc, isSet, isErr);
+      }
+      // 设备记录搭在这趟事务里，不为它单开一次写入
+      if (e.device && e.tokenId > 0 && !isErr) {
+        recordDevice(e.tokenId, e.device, e.ua, e.ts);
       }
     }
     db.exec("COMMIT");
@@ -956,6 +1050,11 @@ module.exports = {
   migrateFromEnv: migrateFromEnv,
   listTokens: listTokens,
   cachedTokens: cachedTokens,
+  deviceLabel: deviceLabel,
+  isSpoofClient: isSpoofClient,
+  markActivated: markActivated,
+  resetActivation: resetActivation,
+  listDevices: listDevices,
   createToken: createToken,
   updateToken: updateToken,
   deleteToken: deleteToken,

@@ -33,6 +33,10 @@ const PAGE = `<!doctype html>
   .grow{flex:1;min-width:0}
   .muted{color:var(--dim);font-size:13px}
   .addr{font-size:14px;margin:2px 0 4px;line-height:1.4}
+  .devs{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0 2px}
+  .dev{font-size:11px;padding:2px 7px;border-radius:99px;background:rgba(0,122,255,.12);
+    color:var(--blue);white-space:nowrap}
+  .dev i{font-style:normal;opacity:.6}
   .mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;
     display:none;align-items:flex-end;justify-content:center}
   .mask.on{display:flex}
@@ -167,7 +171,6 @@ const PAGE = `<!doctype html>
 <script>
 var ADMIN = new URLSearchParams(location.search).get("token") || "";
 var tokensCache = [];
-var moduleTpl = "";   // 模块模板，token 那段是 __TOKEN__，复制时才替换
 var originUrl = "";
 
 function $(id){ return document.getElementById(id); }
@@ -261,10 +264,19 @@ function renderTokens(list){
       '<div class="muted">最后活跃 ' + ago(t.lastSeenAt) +
         ' · 今日 拉取 ' + t.todayLoc + ' / 改点 ' + t.todaySet +
         (t.todayErr ? ' / <span class="st-bad">错误 ' + t.todayErr + '</span>' : '') + '</div>' +
+      (t.activatedAt
+        ? '<div class="muted">已装好 · ' + ago(t.activatedAt) + '首次生效</div>'
+        : '<div class="muted st-bad">未装好 —— 对方那边打开选点页会看到安装引导</div>') +
+      (t.devices && t.devices.length
+        ? '<div class="devs">' + t.devices.map(function(d){
+            return '<span class="dev" title="' + esc(d.ua) + '">' + esc(d.device) +
+                   ' <i>' + d.hits + '</i></span>';
+          }).join("") + '</div>'
+        : '') +
       '<div class="row" style="margin-top:10px">' +
-        '<button class="act" data-a="mod">复制模块</button>' +
         '<button class="act p" data-a="url">复制链接</button>' +
         '<button class="act s" data-a="hist">历史</button>' +
+        '<button class="act s" data-a="reset">重置引导</button>' +
         '<button class="act s" data-a="label">改备注</button>' +
         '<button class="act s" data-a="toggle">' + (live ? "停用" : "启用") + '</button>' +
         '<button class="act r" data-a="del">删除</button>' +
@@ -274,7 +286,6 @@ function renderTokens(list){
 
 function loadTokens(){
   return api("/admin/api/tokens").then(function(d){
-    moduleTpl = d.moduleTemplate || "";
     originUrl = d.origin || "";
     renderTokens(d.tokens);
   });
@@ -287,8 +298,12 @@ $("tokenlist").addEventListener("click", function(ev){
   var t = tokensCache.filter(function(x){ return x.id === id; })[0];
   if(!t) return;
   var a = btn.dataset.a;
-  if(a === "mod") return copy(moduleTpl.split("__TOKEN__").join(t.token), "模块已复制，去小火箭粘贴");
   if(a === "url") return copy(originUrl + "/?token=" + t.token, "选点链接已复制");
+  if(a === "reset"){
+    if(!confirm("重置后，" + (t.label||"该用户") + " 打开选点页会重新看到安装引导和教程页。\\n换手机、误删配置时才需要这么做。继续？")) return;
+    return api("/admin/api/tokens/" + id + "/reset-setup", {method:"POST"})
+      .then(loadTokens).then(function(){ toast("已重置，对方刷新页面即可看到引导"); });
+  }
   if(a === "hist") return openHistory(t);
   if(a === "label"){
     var v = prompt("备注名", t.label || "");
@@ -346,7 +361,7 @@ $("newbtn").addEventListener("click", function(){
   var label = $("newlabel").value.trim();
   api("/admin/api/tokens", {method:"POST", body:{label:label}}).then(function(t){
     $("newlabel").value = "";
-    return loadTokens().then(function(){ copy(t.moduleText, "已生成并复制模块，直接发给对方"); });
+    return loadTokens().then(function(){ copy(t.pickerUrl, "已生成并复制链接，直接发给对方"); });
   }).catch(function(e){ toast("生成失败：" + e.message); });
 });
 

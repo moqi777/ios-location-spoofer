@@ -57,37 +57,6 @@ function originOf(req) {
   return proto + "://" + host;
 }
 
-const SCRIPT_URL =
-  "https://raw.githubusercontent.com/mekos2772/ios-location-spoofer/main/location-spoofer.js";
-const MITM_HOSTS =
-  "gs-loc.apple.com, gs-loc-cn.apple.com, gsp-ssl.ls.apple.com, " +
-  "bluedot.is.autonavi.com, bluedot.is.autonavi.com.gds.alibabadns.com";
-const PATTERN =
-  "^https?:\\/\\/(?:gs-loc(?:-cn)?\\.apple\\.com|gsp-ssl\\.ls\\.apple\\.com|" +
-  "bluedot\\.is\\.autonavi\\.com(?:\\.gds\\.alibabadns\\.com)?)\\/clls\\/wloc";
-
-// 模块文本里除了 token 那一段，每个用户拿到的完全一样。列表接口只发一份模板，
-// 前端拿到后把这个占位符换成自己的 token —— 别给每行都塞一份 600 字节的重复文字。
-const TOKEN_MARK = "__TOKEN__";
-
-function buildModule(origin, token) {
-  return [
-    "#!name=iOS Location Spoofer",
-    "#!desc=拦截 Apple 定位服务器回应的 GPS 坐标，替换成自定义位置。适用于 Shadowrocket。",
-    "",
-    "[Script]",
-    "iOS Location Spoofer = type=http-response,pattern=" + PATTERN +
-      ",requires-body=1,binary-body-mode=1,max-size=0,timeout=30,script-path=" + SCRIPT_URL +
-      ",argument=mode=response&latitude=37.3349&longitude=-122.00902&horizontalAccuracy=39" +
-      "&verticalAccuracy=1000&altitude=530&debug=false&configUrl=" +
-      origin + "/loc.json?token=" + token,
-    "",
-    "[MITM]",
-    "hostname = %APPEND% " + MITM_HOSTS,
-    ""
-  ].join("\n");
-}
-
 function buildPickerUrl(origin, token) {
   return origin + "/?token=" + token;
 }
@@ -198,14 +167,12 @@ function handle(req, res, url) {
         location: loc,
         todayLoc: h.loc_hits || 0,
         todaySet: h.set_hits || 0,
-        todayErr: h.errors || 0
+        todayErr: h.errors || 0,
+        activatedAt: t.activated_at,
+        devices: db.listDevices(t.id)
       };
     });
-    return json(res, 200, {
-      origin: origin,
-      moduleTemplate: buildModule(origin, TOKEN_MARK),
-      tokens: rows
-    }), true;
+    return json(res, 200, { origin: origin, tokens: rows }), true;
   }
 
   // ---- 新建 token ----
@@ -216,7 +183,6 @@ function handle(req, res, url) {
       const t = db.createToken(label.slice(0, 40));
       json(res, 200, {
         id: t.id, token: t.token, label: t.label, status: t.status,
-        moduleText: buildModule(origin, t.token),
         pickerUrl: buildPickerUrl(origin, t.token)
       });
     }).catch(function () { json(res, 400, { error: "bad request" }); });
@@ -230,6 +196,13 @@ function handle(req, res, url) {
       tokenId: Number(mh[1]),
       rows: db.listHistory(Number(mh[1]), url.searchParams.get("limit"))
     }), true;
+  }
+
+  // ---- 重置引导：清掉激活标记，选点页的弹窗/卡片和教程页都会回来 ----
+  const mr = url.pathname.match(/^\/admin\/api\/tokens\/(\d+)\/reset-setup$/);
+  if (mr && req.method === "POST") {
+    const ok = db.resetActivation(Number(mr[1]));
+    return json(res, ok ? 200 : 404, ok ? { ok: true } : { error: "not found" }), true;
   }
 
   // ---- 改备注 / 停用启用 / 删除 ----
@@ -347,6 +320,5 @@ function handle(req, res, url) {
 module.exports = {
   enabled: enabled,
   handle: handle,
-  buildModule: buildModule,
   ADMIN_TOKEN: ADMIN_TOKEN
 };

@@ -30,7 +30,10 @@ const https = require("https");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 const db = require("./db");
+const bundle = require("./bundle");
+const helpPage = require("./help-page");
 const admin = require("./admin");
 
 const PORT = process.env.PORT || 8080;
@@ -324,6 +327,38 @@ function proxyUpstream(targetUrl, res, headers, timeoutMs) {
   });
 }
 
+// 分发物里要写死自己的地址，只能从请求头推。Railway 在前面加了一层边缘代理，
+// 所以协议看 x-forwarded-proto，直连时才看 socket 有没有加密。
+function originOf(req) {
+  const host = req.headers.host || "localhost";
+  const proto = req.headers["x-forwarded-proto"] || (req.socket.encrypted ? "https" : "http");
+  return String(proto).split(",")[0].trim() + "://" + host;
+}
+
+// 教程截图。图不多、改得少，所以直接打进镜像，不做上传接口。
+// 路径只允许 [A-Za-z0-9._-]，杜绝 ../ 穿越；类型白名单，别把它变成任意文件读取。
+const TUTORIAL_DIR = path.join(__dirname, "tutorial");
+const IMG_TYPES = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
+
+function serveTutorial(pathname, req, res) {
+  const name = pathname.slice("/tutorial/".length);
+  if (!/^[A-Za-z0-9._-]+$/.test(name) || name.indexOf("..") >= 0) {
+    return send(res, 404, "text/plain; charset=utf-8", "not found");
+  }
+  const type = IMG_TYPES[path.extname(name).toLowerCase()];
+  if (!type) return send(res, 404, "text/plain; charset=utf-8", "not found");
+  fs.readFile(path.join(TUTORIAL_DIR, name), function (err, buf) {
+    if (err) return send(res, 404, "text/plain; charset=utf-8", "not found");
+    // 图片本身已是压缩格式，再 gzip 白费 CPU；缓存给足，朋友只下一次
+    res.writeHead(200, {
+      "Content-Type": type,
+      "Content-Length": buf.length,
+      "Cache-Control": "public, max-age=604800"
+    });
+    res.end(buf);
+  });
+}
+
 function send(res, code, type, body) {
   res.writeHead(code, {
     "Content-Type": type,
@@ -331,6 +366,37 @@ function send(res, code, type, body) {
     "Cache-Control": "no-store"
   });
   res.end(body);
+}
+
+// 大响应走 gzip。选点页 21KB->8KB、脚本 68KB->15KB、配置 25KB->9KB ——
+// 这几个是流量大头，而且都是文本，压缩比很高。小 JSON（/loc.json 才 216 字节）
+// 不走这里：压完可能更大，CPU 也白花。
+const GZIP_MIN = 1024;
+function sendGz(req, res, code, type, body, cacheControl) {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(String(body), "utf8");
+  const headers = {
+    "Content-Type": type,
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": cacheControl || "no-store"
+  };
+  const accepts = /\bgzip\b/.test(String(req.headers["accept-encoding"] || ""));
+  if (!accepts || buf.length < GZIP_MIN) {
+    headers["Content-Length"] = buf.length;
+    res.writeHead(code, headers);
+    return res.end(buf);
+  }
+  zlib.gzip(buf, function (err, out) {
+    if (err) {                       // 压缩失败就发原文，别把请求整挂了
+      headers["Content-Length"] = buf.length;
+      res.writeHead(code, headers);
+      return res.end(buf);
+    }
+    headers["Content-Encoding"] = "gzip";
+    headers["Vary"] = "Accept-Encoding";
+    headers["Content-Length"] = out.length;
+    res.writeHead(code, headers);
+    res.end(out);
+  });
 }
 
 // 区分「没传 token」和「token 传错」：前者 401 引导补 ?token=，后者 403
@@ -368,7 +434,10 @@ function requireActive(row, res) {
 
 // 只记录业务接口；/health 被 Railway 高频探活，记了全是噪音
 const LOGGED_PATHS = {
-  "/": 1, "/loc.json": 1, "/set": 1, "/enable": 1, "/geocode": 1, "/elevation": 1, "/regeo": 1
+  "/": 1, "/loc.json": 1, "/set": 1, "/enable": 1, "/geocode": 1, "/elevation": 1, "/regeo": 1,
+  // 分发相关也记：一是看得到谁什么时候导入的，二是能观察到小火箭到底会不会
+  // 自动重新拉取配置和脚本 —— 这个行为文档里查不到，看日志最实在。
+  "/conf": 1, "/module": 1, "/location-spoofer.js": 1, "/help": 1
 };
 
 // X-Forwarded-For 的语义是「每层代理往尾部追加自己看到的对端地址」，所以
@@ -408,6 +477,7 @@ function handler(req, res) {
   // 访问日志：路由只管往 res 上挂 _tokenId / _detail，响应结束后统一落库
   res._tokenId = 0;
   res._detail = "";
+  res._recordDevice = false;   // 只有分发和取坐标这类「真客户端」请求才值得记设备
   if (LOGGED_PATHS[url.pathname]) {
     res.on("finish", function () {
       db.logRequest({
@@ -417,7 +487,8 @@ function handler(req, res) {
         status: res.statusCode,
         ip: clientIp(req),
         ua: String(req.headers["user-agent"] || "").slice(0, 160),
-        detail: res._detail || null
+        detail: res._detail || null,
+        device: res._recordDevice ? db.deviceLabel(req.headers["user-agent"]) : null
       });
     });
   }
@@ -431,6 +502,56 @@ function handler(req, res) {
     // admin:true 等于直接告诉外面「这里有个后台」，把 /admin 认证失败也回 404 的伪装白做了；
     // tokens 泄露用户数，rssMB 能被用来侧面观察负载。这些都挪进了 /admin/api/info。
     return send(res, 200, "application/json", JSON.stringify({ ok: true }));
+  }
+
+  // ---- 安装教程 ----
+  // 已经装好的人不需要它，直接送回选点页 —— 教程页上有导入按钮，
+  // 留着只会让人二次导入，也让「换机要找管理员」这条规矩形同虚设。
+  if (url.pathname === "/help" && req.method === "GET") {
+    var helpRow = resolveToken(token, res);
+    if (!helpRow || !requireActive(helpRow, res)) return;
+    res._tokenId = helpRow.id;
+    if (helpRow.activated_at) {
+      res.writeHead(302, { Location: "/?token=" + encodeURIComponent(helpRow.token) });
+      return res.end();
+    }
+    return sendGz(req, res, 200, "text/html; charset=utf-8", helpPage.PAGE);
+  }
+
+  // ---- 教程用的截图 ----
+  if (url.pathname.indexOf("/tutorial/") === 0 && req.method === "GET") {
+    return serveTutorial(url.pathname, req, res);
+  }
+
+  // ---- 脚本本体：模块/配置里的 script-path 指向这里 ----
+  // 不要 token：小火箭去下脚本时带不带 query 参数各版本行为不一，别拿这个赌。
+  // 脚本本身是公开仓库里的代码，没有秘密；真正带 token 的是里面的 configUrl。
+  if (url.pathname === bundle.SCRIPT_PATH && req.method === "GET") {
+    const body = bundle.scriptBody();
+    if (!body) return send(res, 404, "text/plain; charset=utf-8", "script not bundled");
+    return sendGz(req, res, 200, "text/javascript; charset=utf-8", body,
+      "public, max-age=86400");
+  }
+
+  // ---- 一键配置：朋友点一次就把节点规则、[Script]、MITM 域名全装好 ----
+  if (url.pathname === "/conf" && req.method === "GET") {
+    var confOwner = resolveToken(token, res);
+    if (!confOwner || !requireActive(confOwner, res)) return;
+    res._recordDevice = true;
+    const conf = bundle.buildConf(originOf(req), confOwner.token);
+    if (!conf) return send(res, 404, "text/plain; charset=utf-8", "conf template missing");
+    res.setHeader("Content-Disposition", 'attachment; filename="ios-location-spoofer.conf"');
+    return sendGz(req, res, 200, "text/plain; charset=utf-8", conf);
+  }
+
+  // ---- 只要模块：给已经有自己配置文件、不想被整份覆盖的人 ----
+  if (url.pathname === "/module" && req.method === "GET") {
+    var modOwner = resolveToken(token, res);
+    if (!modOwner || !requireActive(modOwner, res)) return;
+    res._recordDevice = true;
+    res.setHeader("Content-Disposition", 'attachment; filename="ios-location-spoofer.module"');
+    return sendGz(req, res, 200, "text/plain; charset=utf-8",
+      bundle.buildModule(originOf(req), modOwner.token));
   }
 
   // ---- 地名搜索转发（Nominatim 国内直连不通；浏览器直连失败才会走到这里） ----
@@ -515,6 +636,13 @@ function handler(req, res) {
   if (url.pathname === "/loc.json" && req.method === "GET") {
     var owner = resolveToken(token, res);
     if (!owner) return;
+    res._recordDevice = true;
+    // 「非浏览器客户端来取坐标」= 脚本真的跑起来了 = HTTPS 解密和模块都通了。
+    // 拿它当「装好了」的判据，比让用户自己点「我装好了」准得多：
+    // 浏览器打开选点页也会拉这个接口，但 UA 是 Safari，区分得开。
+    if (owner.activated_at == null && db.isSpoofClient(req.headers["user-agent"])) {
+      try { db.markActivated(owner.id); } catch (e) { /* 记不上不影响取坐标 */ }
+    }
     var loc = db.readLocation(owner.id);
     // 停用不是拒绝，而是「还你真实定位」：脚本收到 enabled:false 会放行原始响应。
     // 若回 403，脚本反而会回落到模块里写死的坐标（默认是苹果总部），体验上像是坏了。
@@ -597,7 +725,8 @@ function handler(req, res) {
   if (url.pathname === "/" && req.method === "GET") {
     var pRow = resolveToken(token, res);
     if (!pRow || !requireActive(pRow, res)) return;
-    return send(res, 200, "text/html; charset=utf-8", PAGE);
+    return sendGz(req, res, 200, "text/html; charset=utf-8",
+      PAGE.replace("__ACTIVATED__", pRow.activated_at ? "true" : "false"));
   }
 
   return send(res, 404, "text/plain", "not found");
@@ -697,9 +826,29 @@ const PAGE = `<!doctype html>
     background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:8px;
     font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
   .toast.show{opacity:1}
+
+  /* 引导：未激活时顶部常驻一张卡；首次进来另外弹一次窗 */
+  .setup{margin:0 8px 8px;padding:10px 12px;border-radius:10px;
+    background:#fff4e5;border:1px solid #ffd8a8;color:#8a4b00;font-size:14px;line-height:1.5}
+  .setup b{display:block;font-size:15px;margin-bottom:2px}
+  .setup a.go{display:inline-block;margin-top:6px;padding:8px 14px;border-radius:8px;
+    background:#ff9500;color:#fff;text-decoration:none;font-weight:600;font-size:14px}
+  .foot{padding:14px 12px 22px;color:#999;font-size:12px;line-height:1.5;text-align:center}
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;
+    display:none;align-items:center;justify-content:center;padding:20px}
+  .mask.on{display:flex}
+  .sheet{background:#fff;border-radius:14px;padding:18px;max-width:340px;width:100%}
+  .sheet h2{margin:0 0 8px;font-size:18px}
+  .sheet p{margin:0 0 14px;font-size:14px;line-height:1.6;color:#444}
+  .sheet .row2{display:flex;gap:8px}
+  .sheet a,.sheet button{flex:1;text-align:center;padding:11px 8px;border-radius:9px;
+    font-size:15px;border:0;text-decoration:none;font-weight:600}
+  .sheet .p1{background:#007aff;color:#fff}
+  .sheet .p2{background:#eee;color:#333}
 </style>
 </head>
 <body>
+<div id="setup"></div>
 <div class="bar">
   <input id="q" placeholder="搜地名，回车列出候选（只预览，不改定位）">
   <button id="locatebtn" disabled>当前位置</button>
@@ -718,11 +867,52 @@ const PAGE = `<!doctype html>
   <button id="favlistbtn">我的收藏</button>
 </div>
 <div class="results" id="favs"></div>
+<div class="foot">重装或换机后需要重新配置导入，请联系管理员处理</div>
+<div class="mask" id="firstmask"><div class="sheet" id="firstsheet"></div></div>
 <div class="toast" id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
 var AMAP_ON = ${AMAP_KEY ? "true" : "false"};   // 服务端有没有配 AMAP_KEY，决定搜索走高德还是 Nominatim
+var ACTIVATED = __ACTIVATED__;   // 服务端渲染时填：这个 token 有没有见过真实客户端来取坐标
+var IN_WECHAT = /MicroMessenger/i.test(navigator.userAgent);
+
+// ---------- 首次引导 ----------
+// 没装好之前，定位是不会变的 —— 但页面看起来一切正常，用户完全察觉不到。
+// 所以未激活时顶部常驻一张卡，首次进来另外弹一次窗（localStorage 保证只弹一次）。
+// 判据是服务端的 activated_at：只有小火箭真的来取过坐标才会置位，骗不了。
+function confUrl(){ return location.origin + "/conf?token=" + encodeURIComponent(token); }
+function importHref(){ return "shadowrocket://install?config=" + encodeURIComponent(confUrl()); }
+function helpHref(){ return "/help?token=" + encodeURIComponent(token); }
+
+function renderSetup(){
+  if(ACTIVATED || !token) return;
+  $("setup").innerHTML =
+    '<div class="setup"><b>⚠️ 还没装好，现在改的位置不会生效</b>' +
+    '按教程装一次，之后就不用管了。' +
+    '<br><a class="go" href="' + helpHref() + '">去看教程 →</a></div>';
+}
+
+function showFirstRun(){
+  if(ACTIVATED || !token) return;
+  var key = "lp_seen_" + token.slice(0, 8);
+  try { if(localStorage.getItem(key)) return; localStorage.setItem(key, "1"); }
+  catch(e){ /* 隐私模式下 localStorage 会抛，那就每次都弹，总比不弹好 */ }
+  $("firstsheet").innerHTML =
+    '<h2>先花几分钟装好，才能改定位</h2>' +
+    '<p>改位置需要在你手机上装一个 App 并做两步设置。第一次麻烦一点，装完就一劳永逸了。</p>' +
+    '<div class="row2">' +
+      '<a class="p1" href="' + helpHref() + '">按步骤来</a>' +
+      '<button class="p2" id="firstclose">我已经装好了</button>' +
+    '</div>';
+  $("firstmask").classList.add("on");
+  $("firstclose").addEventListener("click", function(){
+    $("firstmask").classList.remove("on");
+  });
+}
+$("firstmask").addEventListener("click", function(ev){
+  if(ev.target === this) this.classList.remove("on");
+});
 
 // ---------- GCJ-02 <-> WGS-84 坐标转换（中国地图偏移修正） ----------
 var GCJ = (function(){
@@ -1154,6 +1344,8 @@ $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);
 $("favadd").addEventListener("click",addFavorite);
 $("favlistbtn").addEventListener("click",toggleFavs);
+renderSetup();
+showFirstRun();
 load();
 </script>
 </body>
