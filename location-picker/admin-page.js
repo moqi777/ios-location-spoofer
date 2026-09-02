@@ -272,19 +272,12 @@ function renderTokens(list){
         : '') +
       '<div class="muted">坐标 ' + Number(loc.latitude).toFixed(5) + ', ' + Number(loc.longitude).toFixed(5) +
         ' · 海拔 ' + loc.altitude + 'm</div>' +
-      '<div class="muted">最后活跃 ' + ago(t.lastSeenAt) +
-        ' · 今日 拉取 ' + t.todayLoc + ' / 改点 ' + t.todaySet +
-        (t.todayErr ? ' / <span class="st-bad">错误 ' + t.todayErr + '</span>' : '') + '</div>' +
+      // 装没装好，上面「最后活跃」那行已经说明了问题 —— 再写一句状态是画蛇添足。
+      // 开关自己的开/关就是状态：开着 = 对方还会看到引导。
       '<div class="row grow2">' +
-        '<div class="grow muted">' +
-          (t.activatedAt
-            ? '已装好 · ' + ago(t.activatedAt) + '首次生效'
-            // 红色的含义是「待处理」。管理员已经把引导关掉 = 明确表示知道了、不用管，
-            // 这时候还红着就成了误报。事实照说，但语气跟着他的操作走。
-            : (t.guideOn
-                ? '<span class="st-bad">还没检测到安装</span>'
-                : '未检测到安装 · 引导已手动关闭')) +
-        '</div>' +
+        '<div class="grow muted">最后活跃 ' + ago(t.lastSeenAt) +
+          ' · 今日 拉取 ' + t.todayLoc + ' / 改点 ' + t.todaySet +
+          (t.todayErr ? ' / <span class="st-bad">错误 ' + t.todayErr + '</span>' : '') + '</div>' +
         '<label class="sw"><span>安装引导</span>' +
           '<input type="checkbox" data-a="guide"' + (t.guideOn ? ' checked' : '') + '></label>' +
       '</div>' +
