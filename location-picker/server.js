@@ -437,7 +437,7 @@ const LOGGED_PATHS = {
   "/": 1, "/loc.json": 1, "/set": 1, "/enable": 1, "/geocode": 1, "/elevation": 1, "/regeo": 1,
   // 分发相关也记：一是看得到谁什么时候导入的，二是能观察到小火箭到底会不会
   // 自动重新拉取配置和脚本 —— 这个行为文档里查不到，看日志最实在。
-  "/conf": 1, "/module": 1, "/location-spoofer.js": 1, "/help": 1
+  "/conf": 1, "/ios-location-spoofer": 1, "/module": 1, "/location-spoofer.js": 1, "/help": 1
 };
 
 // X-Forwarded-For 的语义是「每层代理往尾部追加自己看到的对端地址」，所以
@@ -534,13 +534,16 @@ function handler(req, res) {
   }
 
   // ---- 一键配置：朋友点一次就把节点规则、[Script]、MITM 域名全装好 ----
-  if (url.pathname === "/conf" && req.method === "GET") {
+  // /conf 是旧路径，已经发出去的配置里 update-url 还指着它，得一直留着；
+  // 新的用 /ios-location-spoofer，这样小火箭导进去的文件名才是人话。
+  if ((url.pathname === bundle.CONF_PATH || url.pathname === "/conf") && req.method === "GET") {
     var confOwner = resolveToken(token, res);
     if (!confOwner || !requireActive(confOwner, res)) return;
     res._recordDevice = true;
     const conf = bundle.buildConf(originOf(req), confOwner.token);
     if (!conf) return send(res, 404, "text/plain; charset=utf-8", "conf template missing");
     res.setHeader("Content-Disposition", 'attachment; filename="ios-location-spoofer.conf"');
+    res._tokenId = confOwner.id;
     return sendGz(req, res, 200, "text/plain; charset=utf-8", conf);
   }
 

@@ -27,6 +27,8 @@ const PAGE = `<!doctype html>
     font-size:13px;display:flex;align-items:center;justify-content:center;font-weight:700}
   .step .why{color:var(--dim);font-size:13px;margin:0 0 10px 32px}
   ol,ul{margin:8px 0;padding-left:22px}
+  .steps{margin:6px 0 10px;padding-left:20px}
+  .steps li{margin:3px 0;color:#1c1c1e}
   li{margin:4px 0}
   code{background:#f2f2f7;padding:1px 5px;border-radius:4px;font-size:13px}
   .warn{background:#fff4e5;border:1px solid #ffd8a8;color:#8a4b00;
@@ -141,23 +143,14 @@ if(IN_WECHAT){
     '<a class="cta off" href="javascript:void(0)" onclick="return false">先用 Safari 打开本页</a>' +
     '<div class="hint">右上角「⋯」→「在Safari中打开」</div>';
 } else {
-  var url = location.origin + "/conf?token=" + encodeURIComponent(token);
-  // 实测：shadowrocket://install?config= 只能把 App 唤起来，导入动作它不认。
-  // 但小火箭启动时会自己扫一眼剪贴板找配置链接（所以会弹「是否允许粘贴」）。
-  // 于是把顺序反过来用：点击时先同步写剪贴板，再让链接把 App 唤起，
-  // 它一开就问「是否允许粘贴」，点允许配置就进去了。
-  // 复制必须用同步的 execCommand —— clipboard.writeText 是异步的，
-  // 等它 resolve 的时候页面早跳走了，剪贴板还是空的。
-  $("ctabox").innerHTML =
-    '<a class="cta" id="ctago" href="shadowrocket://install?config=' + encodeURIComponent(url) + '">复制链接并打开小火箭</a>' +
-    '<div class="hint">小火箭打开后会问「是否允许粘贴」，点<b>允许</b>，配置就自动导入了</div>' +
-    '<div class="alt"><b>点了没反应，或者提示「网址无效」？</b><br>' +
-      '说明这台手机还没装小火箭 —— iOS 找不到能打开这个链接的 App，就会这么报。' +
-      '先回第一步把小火箭装上，再回来点。<br><br>' +
-      '如果小火箭没弹「是否允许粘贴」，就手动来：复制下面的链接，' +
-      '打开小火箭 → 左上角 <b>+</b> → 粘贴。' +
-      '<button class="copybtn" id="copyconf">复制配置链接</button></div>';
-  // 同步复制，必须在用户手势里完成，不能等 Promise
+  var url = location.origin + "/ios-location-spoofer?token=" + encodeURIComponent(token);
+
+  // 一键导入是做不到的：shadowrocket://install?config= 只能把 App 唤起来，
+  // 导入动作它不认；小火箭启动时扫剪贴板那条路实测也不生效。
+  // 所以这个按钮只干两件确定能成的事：把链接复制好、把 App 唤起来。
+  // 剩下四步必须用户自己点，那就把路径写清楚，别让人在界面里瞎找。
+  // 复制要用同步的 execCommand —— clipboard.writeText 是异步的，
+  // 等它 resolve 时页面早跳走了，剪贴板还是空的。
   function copySync(text){
     var ta = document.createElement("textarea");
     ta.value = text;
@@ -169,36 +162,29 @@ if(IN_WECHAT){
     document.body.removeChild(ta);
     return ok;
   }
+
+  $("ctabox").innerHTML =
+    '<a class="cta" id="ctago" href="shadowrocket://">复制链接并打开小火箭</a>' +
+    '<div class="hint" id="ctahint">点一下，链接会自动复制到剪贴板</div>' +
+    '<div class="alt"><b>然后在小火箭里这样做：</b>' +
+      '<ol class="steps">' +
+        '<li>底部「<b>配置</b>」栏</li>' +
+        '<li>右上角 <b>+</b> 号</li>' +
+        '<li>粘贴刚才复制好的链接</li>' +
+        '<li>点<b>下载</b></li>' +
+        '<li>切换到这份配置（点一下让它打勾）</li>' +
+      '</ol>' +
+      '如果按钮点了没反应、或提示「网址无效」，说明这台手机还没装小火箭，' +
+      '先回第一步。链接其实已经复制好了，装完自己打开小火箭按上面五步走也行。' +
+    '</div>';
+
   $("ctago").addEventListener("click", function(){
     copySync(url);
     if(navigator.clipboard && navigator.clipboard.writeText){
-      // 再补一发异步的：某些版本 execCommand 已被废弃，这个才管用。
-      // 不 await —— 链接的跳转不等它，能写进去算赚到。
       try { navigator.clipboard.writeText(url); } catch(e){}
     }
-    // 不 preventDefault：让 <a> 自己去唤起 App，跳转由浏览器原生完成最可靠
-  });
-
-  $("copyconf").addEventListener("click", function(){
-    var b = this;
-    function done(){ b.textContent = "已复制，去小火箭粘贴"; b.className = "copybtn done"; }
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(url).then(done, fallback);
-    } else { fallback(); }
-    function fallback(){
-      // iOS 上 clipboard API 在非 https 或旧系统里会失败，退回选中文本让用户自己长按复制
-      var ta = document.createElement("textarea");
-      ta.value = url; ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta); ta.select();
-      var ok = false;
-      try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
-      document.body.removeChild(ta);
-      if(ok) done(); else {
-        b.outerHTML = '<div class="alt" style="border:0;padding-top:6px">' +
-          '复制失败，请长按选中这段地址：<br><span style="word-break:break-all;color:#007aff">' +
-          url.replace(/&/g,"&amp;").replace(/</g,"&lt;") + '</span></div>';
-      }
-    }
+    $("ctahint").innerHTML = '<b style="color:#34c759">链接已复制</b> —— 在小火箭里按下面五步走';
+    // 不 preventDefault：唤起 App 的跳转交给浏览器原生完成最可靠
   });
 }
 </script>

@@ -21,6 +21,10 @@ const MITM_HOSTS =
   "bluedot.is.autonavi.com, bluedot.is.autonavi.com.gds.alibabadns.com";
 
 const SCRIPT_PATH = "/location-spoofer.js";
+// 小火箭是拿 URL 最后一段当文件名、再补 .conf 后缀的。路径写 /conf 的话
+// 导进去就叫「conf.conf」，在配置列表里根本认不出是什么。所以路径本身要起个像样的名字，
+// 而且不能带扩展名 —— 带了会变成 xxx.conf.conf。
+const CONF_PATH = "/ios-location-spoofer";
 const SCRIPT_FILE = path.join(__dirname, "location-spoofer.js");
 const CONF_FILE = path.join(__dirname, "shadowrocket.conf");
 
@@ -95,7 +99,7 @@ function loadConf() {
   //    指向自己之后，更新反而变成好事：内容永远是最新的、带着正确的 token。
   raw = raw.replace(
     /^update-url\s*=.*$/m,
-    "update-url = __ORIGIN__/conf?token=__TOKEN__"
+    "update-url = __ORIGIN__" + CONF_PATH + "?token=__TOKEN__"
   );
 
   // 2) 自己的域名直连，插在 [Rule] 最前面。规则是从上往下匹配的，
@@ -128,6 +132,7 @@ module.exports = {
   PATTERN: PATTERN,
   MITM_HOSTS: MITM_HOSTS,
   SCRIPT_PATH: SCRIPT_PATH,
+  CONF_PATH: CONF_PATH,
   scriptBody: function () { return scriptBody; },
   buildModule: buildModule,
   buildConf: buildConf,
