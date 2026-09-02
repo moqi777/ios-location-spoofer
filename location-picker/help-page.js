@@ -142,17 +142,43 @@ if(IN_WECHAT){
     '<div class="hint">右上角「⋯」→「在Safari中打开」</div>';
 } else {
   var url = location.origin + "/conf?token=" + encodeURIComponent(token);
-  // 一键导入靠的是 shadowrocket:// 这个自定义协议。手机上没装小火箭时，
-  // Safari 会报「网址无效」——它并不知道是「没有 App 认领这个协议」，只能这么说。
-  // 所以下面既要解释这句报错，也要给一条不依赖协议的备用路：复制链接手动粘贴。
+  // 实测：shadowrocket://install?config= 只能把 App 唤起来，导入动作它不认。
+  // 但小火箭启动时会自己扫一眼剪贴板找配置链接（所以会弹「是否允许粘贴」）。
+  // 于是把顺序反过来用：点击时先同步写剪贴板，再让链接把 App 唤起，
+  // 它一开就问「是否允许粘贴」，点允许配置就进去了。
+  // 复制必须用同步的 execCommand —— clipboard.writeText 是异步的，
+  // 等它 resolve 的时候页面早跳走了，剪贴板还是空的。
   $("ctabox").innerHTML =
-    '<a class="cta" href="shadowrocket://install?config=' + encodeURIComponent(url) + '">一键导入配置</a>' +
-    '<div class="hint">会跳到小火箭并提示「是否导入配置」，点确定即可</div>' +
+    '<a class="cta" id="ctago" href="shadowrocket://install?config=' + encodeURIComponent(url) + '">复制链接并打开小火箭</a>' +
+    '<div class="hint">小火箭打开后会问「是否允许粘贴」，点<b>允许</b>，配置就自动导入了</div>' +
     '<div class="alt"><b>点了没反应，或者提示「网址无效」？</b><br>' +
       '说明这台手机还没装小火箭 —— iOS 找不到能打开这个链接的 App，就会这么报。' +
       '先回第一步把小火箭装上，再回来点。<br><br>' +
-      '装好了还是不行，就手动导入：复制下面的链接，打开小火箭 → 左上角 <b>+</b> → 粘贴。' +
+      '如果小火箭没弹「是否允许粘贴」，就手动来：复制下面的链接，' +
+      '打开小火箭 → 左上角 <b>+</b> → 粘贴。' +
       '<button class="copybtn" id="copyconf">复制配置链接</button></div>';
+  // 同步复制，必须在用户手势里完成，不能等 Promise
+  function copySync(text){
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed"; ta.style.top = "0"; ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.setSelectionRange(0, text.length);
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  $("ctago").addEventListener("click", function(){
+    copySync(url);
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      // 再补一发异步的：某些版本 execCommand 已被废弃，这个才管用。
+      // 不 await —— 链接的跳转不等它，能写进去算赚到。
+      try { navigator.clipboard.writeText(url); } catch(e){}
+    }
+    // 不 preventDefault：让 <a> 自己去唤起 App，跳转由浏览器原生完成最可靠
+  });
+
   $("copyconf").addEventListener("click", function(){
     var b = this;
     function done(){ b.textContent = "已复制，去小火箭粘贴"; b.className = "copybtn done"; }
