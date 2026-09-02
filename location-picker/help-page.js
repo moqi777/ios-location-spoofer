@@ -4,8 +4,12 @@
 // 弹窗里放不下，也不该放。弹窗只负责把人引到这儿来。
 //
 // 图片走 /tutorial/*.jpg，由服务器自己托管 —— GitHub 图床国内打不开。
-// 全部 loading=lazy：27 张共 528KB，不懒加载的话开页就得等半天。
+// 全部 loading=lazy：26 张共 528KB，不懒加载的话开页就得等半天。
 // 图还没补齐时 onerror 会把 <img> 换成一个占位框，不至于留一片破图。
+//
+// 排版铁律：页面顺序必须等于用户手上的操作顺序。提醒和截图都贴在它所属的
+// 那一步旁边，不能攒到段落末尾——否则读者做到一半会撞见后面才用得上的东西，
+// 以为自己漏了什么。同一句话也不要既写在正文又写进图注。
 //
 // 截图里的隐私已经在生成时裁掉了：关于本机那张切到只剩「证书信任设置」一行
 // （原图有 IMEI/ICCID/MEID），首页那张只留顶部开关（原图有机场订阅名和流量）。
@@ -62,7 +66,7 @@ const PAGE = `<!doctype html>
   .g{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
   .g img{width:100%;display:block;background:#fafafa;cursor:zoom-in}
   .g .cap{padding:6px 8px;font-size:12px;line-height:1.5;color:#3a3a3c;flex:1}
-  .g .cap i{font-style:normal;display:inline-flex;align-items:center;justify-content:center;
+  .g .cap i,.shot .cap i{font-style:normal;display:inline-flex;align-items:center;justify-content:center;
     width:17px;height:17px;border-radius:50%;background:var(--blue);color:#fff;
     font-size:11px;font-weight:700;margin-right:4px;vertical-align:-3px}
   .ph{padding:26px 12px;text-align:center;color:var(--dim);font-size:13px;background:#fafafa}
@@ -125,7 +129,6 @@ const PAGE = `<!doctype html>
       <div class="path">设置 → 顶部你的名字（Apple 账户）<br>→ 媒体与购买项目 → 退出登录</div>
       <div class="shot" style="margin-bottom:0">
         <img src="/tutorial/s1a-signout-new.jpg" alt="iOS 26.4 及以上退出方式" loading="lazy" onerror="ph(this)">
-        <div class="cap">新版路径：设置 → Apple 账户 → 媒体与购买项目 → 退出登录</div>
       </div>
     </div>
   </div>
@@ -136,7 +139,6 @@ const PAGE = `<!doctype html>
       <div class="path">打开 App Store → 右上角头像<br>→ 一直往下滑到最底 → 退出登录</div>
       <div class="shot" style="margin-bottom:0">
         <img src="/tutorial/s1b-signout-old.jpg" alt="旧版本退出方式" loading="lazy" onerror="ph(this)">
-        <div class="cap">旧版路径：App Store → 头像 → 拉到最底 → 退出登录</div>
       </div>
     </div>
   </div>
@@ -148,44 +150,42 @@ const PAGE = `<!doctype html>
   </div>
 
   <ol start="3">
-    <li><b>用刚买的外区账号登录 App Store</b>，搜索并下载 Shadowrocket。</li>
-    <li>登录时如果弹「Apple ID 安全 / 双重认证」，
-      点<b>「其他选项」→「不升级」</b>，<b>不要</b>绑你的手机号。</li>
-    <li>下载完成后，<b>立刻按上面同样的路径退出</b>外区账号，换回自己的国区账号，
-      之后照常更新国区 App。</li>
+    <li><b>打开 App Store，用刚买的外区账号登录。</b></li>
   </ol>
-
-  <div class="shot">
-    <img src="/tutorial/s1c-skip2fa.jpg" alt="跳过双重认证" loading="lazy" onerror="ph(this)">
-    <div class="cap">敲重点：先点「其他选项」，再点「不升级」</div>
-  </div>
 
   <div class="warn">
     <b>登不上很正常</b>
     共享账号容易被风控，多试几次或等 24 小时再试。密码错了别硬试，会锁。
   </div>
+
+  <ol start="4">
+    <li><b>登录后会弹「Apple ID 安全 / 双重认证」</b>，
+      必须点<b>「其他选项」→「不升级」</b>，<b>不要</b>绑你的手机号。</li>
+  </ol>
+
+  <div class="shot">
+    <img src="/tutorial/s1c-skip2fa.jpg" alt="跳过双重认证" loading="lazy" onerror="ph(this)">
+    <div class="cap">左边先点「其他选项」，右边再点「不升级」</div>
+  </div>
+
+  <ol start="5">
+    <li><b>搜索 Shadowrocket，下载。</b></li>
+    <li>下载完成后，<b>立刻按第 2 步同样的路径退出</b>外区账号，换回自己的国区账号，
+      之后照常更新国区 App。</li>
+  </ol>
 </div>
 
 <div class="step">
   <h2><span class="n">2</span>导入配置</h2>
   <p class="why">一次装好分流规则和定位脚本，你的专属链接已经在按钮里了。</p>
   <div id="ctabox"></div>
-  <div class="shot">
-    <img src="/tutorial/s2-enable.jpg" alt="打开小火箭开关" loading="lazy" onerror="ph(this)">
-    <div class="cap">最后回首页，把最上面那个开关打开（会弹一次「允许添加 VPN 配置」，点允许）</div>
-  </div>
-  <div class="warn">
-    <b>首页那一堆订阅不用管</b>
-    那是节点，跟改定位没关系 —— <b class="i">不订阅任何节点也能改定位</b>。
-    需要翻墙再找管理员要。
-  </div>
 </div>
 
 <div class="step">
   <h2><span class="n">3</span>打开 HTTPS 解密</h2>
   <p class="why">不做这步，前面全白装 —— 定位不会变，而且不会有任何报错。</p>
   <div class="warn">
-    <b>二十步看着吓人，其实一路点「下一步」</b>
+    <b>二十一步看着吓人，其实一路点「下一步」</b>
     真正容易漏的只有第 <b class="i">14</b> 步：「证书信任设置」藏在<b class="i">关于本机</b>页面的<b class="i">最底部</b>，
     装完描述文件不会自动跳过去，得自己翻下去。这个开关没开，解密就是不生效的。
   </div>
@@ -209,9 +209,19 @@ const PAGE = `<!doctype html>
     <div class="g"><img src="/tutorial/s3-17.jpg" alt="17" loading="lazy" onerror="ph(this)"><div class="cap"><i>17</i>回到小火箭，左上角 ✕ 关掉这个空白页</div></div>
     <div class="g"><img src="/tutorial/s3-18.jpg" alt="18" loading="lazy" onerror="ph(this)"><div class="cap"><i>18</i>证书这里变成「<b>系统已信任</b>」，点右上角 ✓</div></div>
     <div class="g"><img src="/tutorial/s3-19.jpg" alt="19" loading="lazy" onerror="ph(this)"><div class="cap"><i>19</i>确认「HTTPS 解密」开关是开的，点右上角 ✓ 保存</div></div>
-    <div class="g"><img src="/tutorial/s3-20.jpg" alt="20" loading="lazy" onerror="ph(this)"><div class="cap"><i>20</i>左上角返回。装完了</div></div>
+    <div class="g"><img src="/tutorial/s3-20.jpg" alt="20" loading="lazy" onerror="ph(this)"><div class="cap"><i>20</i>左上角返回，解密就配好了</div></div>
   </div>
-  <div class="hint" style="text-align:left;margin-top:8px">图看不清？点一下可以放大。</div>
+  <div class="hint" style="text-align:left;margin:8px 0 0">图看不清？点一下可以放大。</div>
+
+  <div class="shot">
+    <img src="/tutorial/s3-21.jpg" alt="21" loading="lazy" onerror="ph(this)">
+    <div class="cap"><i>21</i>回首页，把最上面那个开关打开。会弹一次「允许添加 VPN 配置」，点允许。到这儿就全装完了</div>
+  </div>
+  <div class="warn">
+    <b>首页那一堆订阅不用管</b>
+    那是节点，跟改定位没关系 —— <b class="i">不订阅任何节点也能改定位</b>。
+    需要翻墙再找管理员要。
+  </div>
 </div>
 
 <div class="step">
