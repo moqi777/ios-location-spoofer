@@ -7,10 +7,14 @@ help-page.js 引用了下面这些。缺哪张页面就显示「（示意图待�
   s1b-signout-old.jpg   iOS 26.4 以下：App Store → 头像 → 拉到最底 → 退出登录
   s1c-skip2fa.jpg       Apple ID 安全提示 → 其他选项 → 不升级
 
-第二步 导入配置（无图，就是一个按钮加五步手动操作）
+第二步 导入模块（只发模块，不发配置文件——用户继续用自己的配置）
+  s2-01.jpg  配置 → 模块
+  s2-02.jpg  右上角 +
+  s2-03.jpg  粘贴链接 → 下载
+  s2-04.jpg  模块出现并打勾 = 装好了
 
 第三步 打开 HTTPS 解密（21 张，顺序就是操作顺序）
-  s3-01.jpg  切到本配置并点 ⓘ          s3-11.jpg  底部弹窗再点安装
+  s3-01.jpg  点当前配置右边的 ⓘ        s3-11.jpg  底部弹窗再点安装
   s3-02.jpg  进 HTTPS 解密              s3-12.jpg  已安装 → 完成
   s3-03.jpg  打开总开关                 s3-13.jpg  设置 → 通用 → 关于本机
   s3-04.jpg  证书 → 安装证书            s3-14.jpg  最底部 → 证书信任设置
@@ -29,9 +33,10 @@ help-page.js 引用了下面这些。缺哪张页面就显示「（示意图待�
 
 ---
 
-加图前先压一遍。当前这批是 460px 宽、JPEG 质量 70，单张 10~38 KB，26 张共 528 KB：
+加图前先压一遍。当前这批 460px 宽、JPEG 质量 60~70，单张 10~48 KB，30 张共 752 KB。
+质量 60 对这类 UI 截图肉眼看不出差别，比 70 省 20%：
 
-  sips -s format jpeg -s formatOptions 70 --resampleWidth 460 原图.png --out 目标.jpg
+  sips -s format jpeg -s formatOptions 60 --resampleWidth 460 原图.png --out 目标.jpg
 
 裁剪（sips 的 --cropOffset 是左上角绝对坐标，但**宽度等于原图宽度时会被忽略、
 退回居中裁剪**，所以宽度要比原图小至少 2px）：

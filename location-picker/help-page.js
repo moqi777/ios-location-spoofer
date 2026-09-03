@@ -185,6 +185,17 @@ const PAGE = `<!doctype html>
   <h2><span class="n">2</span>导入模块</h2>
   <p class="why">模块是「加装」，不会动你现有的节点和规则。你的专属链接已经在按钮里了。</p>
   <div id="ctabox"></div>
+  <div class="grid">
+    <div class="g"><img src="/tutorial/s2-01.jpg?v=__ASSETV__" alt="1" loading="lazy" onerror="ph(this)"><div class="cap"><i>1</i>底部「配置」栏，点上方的「<b>模块</b>」</div></div>
+    <div class="g"><img src="/tutorial/s2-02.jpg?v=__ASSETV__" alt="2" loading="lazy" onerror="ph(this)"><div class="cap"><i>2</i>右上角 <b>+</b> 号</div></div>
+    <div class="g"><img src="/tutorial/s2-03.jpg?v=__ASSETV__" alt="3" loading="lazy" onerror="ph(this)"><div class="cap"><i>3</i>粘贴刚才复制好的链接，点「<b>下载</b>」</div></div>
+    <div class="g"><img src="/tutorial/s2-04.jpg?v=__ASSETV__" alt="4" loading="lazy" onerror="ph(this)"><div class="cap"><i>4</i>出现「iOS Location Spoofer」并且<b>打着勾</b>，就装好了</div></div>
+  </div>
+  <div class="warn">
+    <b>这里不用切换配置</b>
+    模块是叠加上去的 —— 你原来在用哪份配置，就继续用哪份。新装的小火箭默认用的是
+    <code>default.conf</code>，也一样能用。
+  </div>
 </div>
 
 <div class="step">
