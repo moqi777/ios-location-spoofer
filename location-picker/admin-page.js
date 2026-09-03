@@ -91,6 +91,27 @@ const PAGE = `<!doctype html>
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}
   th{color:var(--dim);font-weight:600;font-size:12px}
+  /* 接口多选：按钮 + 浮层复选框。用原生 <select multiple> 的话
+     手机上要长按、桌面上要按住 ⌘ 点，而这个筛选器就是要多选才有用 */
+  .msel{position:relative}
+  .msel>button{padding:7px 10px;font-size:14px;border:1px solid var(--line);
+    border-radius:8px;background:var(--card);color:var(--text);max-width:220px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+  .msel>button.act2{border-color:var(--blue);color:var(--blue)}
+  .mpanel{display:none;position:absolute;z-index:20;top:calc(100% + 4px);left:0;
+    min-width:250px;max-height:60vh;overflow:auto;background:var(--card);
+    border:1px solid var(--line);border-radius:10px;padding:6px;
+    box-shadow:0 8px 28px rgba(0,0,0,.18)}
+  .mpanel.on{display:block}
+  .mpanel .g{font-size:12px;color:var(--dim);padding:7px 8px 3px;font-weight:600}
+  .mpanel label{display:flex;align-items:center;gap:8px;padding:7px 8px;
+    border-radius:7px;font-size:14px;cursor:pointer}
+  .mpanel label:hover{background:var(--bg)}
+  .mpanel label input{width:auto;flex:0 0 auto;margin:0}
+  .mpanel label .d{color:var(--dim);font-size:12px;margin-left:auto}
+  .mpanel .foot2{display:flex;gap:6px;padding:6px 4px 2px;border-top:1px solid var(--line);margin-top:4px}
+  .mpanel .foot2 button{flex:1;padding:7px;font-size:13px;border:0;border-radius:7px;
+    background:var(--bg);color:var(--text)}
   .wrap{overflow-x:auto}
   .st-ok{color:var(--green)} .st-bad{color:var(--red)}
   .alert{background:rgba(255,59,48,.12);border:1px solid rgba(255,59,48,.3);
@@ -164,27 +185,10 @@ const PAGE = `<!doctype html>
     <div class="card">
       <div class="row">
         <select id="f-token"><option value="">全部 Token</option></select>
-        <select id="f-path">
-          <option value="">全部接口</option>
-          <optgroup label="手机端（小火箭）">
-            <option value="/loc.json">/loc.json　取坐标</option>
-            <option value="/ios-location-spoofer,/module">模块下载</option>
-            <option value="/location-spoofer.js">/location-spoofer.js　脚本</option>
-          </optgroup>
-          <optgroup label="用户操作">
-            <option value="/set">/set　保存定位</option>
-            <option value="/enable">/enable　开关伪造</option>
-          </optgroup>
-          <optgroup label="网页">
-            <option value="/">/　选点页</option>
-            <option value="/help">/help　教程页</option>
-          </optgroup>
-          <optgroup label="辅助查询">
-            <option value="/geocode">/geocode　搜地名</option>
-            <option value="/regeo">/regeo　反查地址</option>
-            <option value="/elevation">/elevation　查海拔</option>
-          </optgroup>
-        </select>
+        <div class="msel" id="f-path-box">
+          <button type="button" id="f-path-btn">全部接口</button>
+          <div class="mpanel" id="f-path-panel"></div>
+        </div>
         <input type="date" id="f-from"><span class="muted">→</span><input type="date" id="f-to">
         <label class="muted row" style="gap:4px"><input type="checkbox" id="f-err" style="width:auto">仅错误</label>
         <button class="act" id="f-go">查询</button>
@@ -559,6 +563,82 @@ function kpi(v, k, warn){
 // ---------- Tab 3：日志 ----------
 var logOffset = 0;
 var LOG_PAGE = 100;
+
+// 会进日志的 11 个接口。顺手把每个是干嘛的写在这儿——这套接口平时不看代码
+// 根本记不住谁是谁，筛选器本身就该能当说明书用。
+// value 是逗号分隔的路径列表：模块的两个地址是同一件事，界面上合成一项。
+var PATH_GROUPS = [
+  ["手机端（小火箭）", [
+    ["/loc.json", "/loc.json", "取坐标"],
+    ["/ios-location-spoofer,/module", "模块下载", "导入模块"],
+    ["/location-spoofer.js", "/location-spoofer.js", "脚本"]
+  ]],
+  ["用户操作", [
+    ["/set", "/set", "保存定位"],
+    ["/enable", "/enable", "开关伪造"]
+  ]],
+  ["网页", [
+    ["/", "/", "选点页"],
+    ["/help", "/help", "教程页"]
+  ]],
+  ["辅助查询", [
+    ["/geocode", "/geocode", "搜地名"],
+    ["/regeo", "/regeo", "反查地址"],
+    ["/elevation", "/elevation", "查海拔"]
+  ]]
+];
+
+function pathPanelHtml(){
+  var h = "";
+  PATH_GROUPS.forEach(function(g){
+    h += '<div class="g">' + esc(g[0]) + '</div>';
+    g[1].forEach(function(o){
+      h += '<label><input type="checkbox" value="' + esc(o[0]) + '">' +
+           '<span>' + esc(o[1]) + '</span><span class="d">' + esc(o[2]) + '</span></label>';
+    });
+  });
+  h += '<div class="foot2"><button type="button" id="mp-clear">清空</button>' +
+       '<button type="button" id="mp-close">收起</button></div>';
+  return h;
+}
+
+function selectedPaths(){
+  return Array.prototype.slice
+    .call($("f-path-panel").querySelectorAll("input:checked"))
+    .map(function(c){ return c.value; });
+}
+
+// 按钮文案要能一眼看出选了什么：没选=全部，选一项=显示它，多项=显示数量。
+// 选中时描边变蓝，不然折叠起来根本看不出筛选器是开着的。
+function syncPathBtn(){
+  var picked = selectedPaths();
+  var btn = $("f-path-btn");
+  if(!picked.length){ btn.textContent = "全部接口"; btn.classList.remove("act2"); return; }
+  btn.classList.add("act2");
+  if(picked.length === 1){
+    var label = picked[0];
+    PATH_GROUPS.forEach(function(g){ g[1].forEach(function(o){ if(o[0] === picked[0]) label = o[1]; }); });
+    btn.textContent = label;
+  } else {
+    btn.textContent = "已选 " + picked.length + " 个接口";
+  }
+}
+
+$("f-path-panel").innerHTML = pathPanelHtml();
+$("f-path-btn").addEventListener("click", function(e){
+  e.stopPropagation();
+  $("f-path-panel").classList.toggle("on");
+});
+$("f-path-panel").addEventListener("click", function(e){
+  e.stopPropagation();
+  if(e.target.id === "mp-close"){ this.classList.remove("on"); return; }
+  if(e.target.id === "mp-clear"){
+    this.querySelectorAll("input:checked").forEach(function(c){ c.checked = false; });
+  }
+  syncPathBtn();
+});
+// 点面板外面收起来。挂在 document 上，所以上面两个 handler 都要 stopPropagation
+document.addEventListener("click", function(){ $("f-path-panel").classList.remove("on"); });
 function loadLogs(reset){
   if(reset) logOffset = 0;
   var q = "/admin/api/logs?limit=" + LOG_PAGE + "&offset=" + logOffset;
@@ -567,9 +647,9 @@ function loadLogs(reset){
   if($("f-from").value) q += "&from=" + $("f-from").value;
   if($("f-to").value) q += "&to=" + $("f-to").value;
   if($("f-err").checked) q += "&errors=1";
-  // 值可能是「/ios-location-spoofer,/module」这种多路径，逗号要转义，
-  // 否则会被当成 query 分隔符的一部分，后端拿到的路径是断的
-  var fpath = $("f-path").value;
+  // 每项本身可能就是多路径（模块那两个别名），拼起来仍是一个逗号分隔的串。
+  // 逗号必须转义，否则会被当成 query 语法的一部分，后端拿到的路径是断的。
+  var fpath = selectedPaths().join(",");
   if(fpath !== "") q += "&path=" + encodeURIComponent(fpath);
   api(q).then(function(d){
     if(!d.rows.length){
