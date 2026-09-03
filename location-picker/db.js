@@ -991,6 +991,9 @@ function queryLogs(opts) {
     " ORDER BY l.id DESC LIMIT ? OFFSET ?"
   );
   const rows = rowStmt.all.apply(rowStmt, args.concat([limit, offset]));
+  // 在这里解析 UA，而不是丢给前端自己认：deviceLabel 就在本文件里，
+  // 设备列表用的也是它。两处共用一套规则，日志里显示的机型才和设备卡片对得上。
+  rows.forEach(function (r) { r.device = deviceLabel(r.ua); });
   return { total: total, rows: rows, limit: limit, offset: offset };
 }
 

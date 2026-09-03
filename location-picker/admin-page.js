@@ -578,8 +578,13 @@ function loadLogs(reset){
     }
     var rows = d.rows.map(function(r){
       var name = r.label || (r.token_id ? "#" + r.token_id : "—");
+      // 客户端列显示解析后的短标签，鼠标悬停看 UA 原文——原文 160 字符，
+      // 直接铺进表格会把别的列全挤没
+      var dev = r.device || "未知";
       return '<tr><td class="muted" style="white-space:nowrap">' + fmtTime(r.ts) + '</td>' +
-        '<td>' + esc(name) + '</td><td class="mono">' + esc(r.path) + '</td>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td class="muted" style="white-space:nowrap" title="' + esc(r.ua || "") + '">' + esc(dev) + '</td>' +
+        '<td class="mono">' + esc(r.path) + '</td>' +
         '<td class="' + (r.status >= 400 ? "st-bad" : "st-ok") + '">' + r.status + '</td>' +
         '<td class="mono">' + esc(r.ip || "") + '</td>' +
         '<td class="muted">' + esc(r.detail || "") + '</td></tr>';
@@ -590,7 +595,7 @@ function loadLogs(reset){
       '<button class="act s" id="next"' + (to < d.total ? "" : " disabled") + '>下一页</button>' +
       '<span class="muted grow" style="text-align:right">' + from + '–' + to + ' / 共 ' + d.total + ' 条</span></div>';
     $("logs").innerHTML = '<div class="card"><div class="wrap"><table>' +
-      '<tr><th>时间</th><th>用户</th><th>接口</th><th>状态</th><th>IP</th><th>详情</th></tr>' +
+      '<tr><th>时间</th><th>用户</th><th>客户端</th><th>接口</th><th>状态</th><th>IP</th><th>详情</th></tr>' +
       rows + '</table></div>' + nav + '</div>';
     $("prev").onclick = function(){ logOffset = Math.max(0, logOffset - LOG_PAGE); loadLogs(false); };
     $("next").onclick = function(){ logOffset += LOG_PAGE; loadLogs(false); };
