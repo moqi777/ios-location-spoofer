@@ -474,15 +474,21 @@ const LOGGED_PATHS = {
 // X-Forwarded-For 的语义是「每层代理往尾部追加自己看到的对端地址」，所以
 // 最左边那段是客户端自己写进去的，可以随便伪造 —— 取它等于把日志 IP 的控制权交给攻击者：
 // 爆破 token 时每次换个假 IP，看板那条「同 IP 多次 403」的告警就永远不会触发。
-// 正确做法是从右往左数固定跳数。Railway 前面是一层边缘代理，所以默认 1；
+// 正确做法是从右往左数固定跳数。默认 2 是实测出来的：拿一台已知公网 IP 的机器
+// （204.12.195.12）打生产环境，转发链是 ["204.12.195.12", "152.233.40.1"]——
+// Railway 前面是两层，不是一层。之前默认 1 时取到的永远是右边那个内部地址。
+//
+// 这个错误没有任何外在症状：日志照常有 IP、格式也对、不同请求还会落在不同地址上，
+// 看着完全正常，实际上完全没有分辨力。设错了就去 /admin/api/whoami 重新量一次，
+// resultByHops 里等于你自己公网 IP 的那个键就是该设的值。
 // 裸机直连公网（没有任何代理）请设成 0，只信 socket 地址。
 const TRUST_PROXY_HOPS = (function () {
   const raw = process.env.TRUST_PROXY_HOPS;
-  if (raw === undefined || raw === "") return 1;
+  if (raw === undefined || raw === "") return 2;
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 0) {
-    console.log("TRUST_PROXY_HOPS 不是合法的非负整数，回落到 1");
-    return 1;
+    console.log("TRUST_PROXY_HOPS 不是合法的非负整数，回落到 2");
+    return 2;
   }
   return n;
 })();
