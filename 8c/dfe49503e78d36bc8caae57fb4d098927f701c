@@ -1,0 +1,11 @@
+location-picker/server.js
+  ai_agent 477-483,487,490-491
+location-picker/.env.example
+  ai_agent 32-35,37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "8cdfe49503e78d36bc8caae57fb4d098927f701c",
+  "prompts": {}
+}
