@@ -1,5 +1,8 @@
 // 安装教程页 —— /help?token=xxx
 //
+// 分发物只有一个模块（不发配置文件），所以第二步是「导入模块」，
+// 而且没有「切换到这份配置」那一步——模块叠加在用户自己的配置上。
+//
 // 为什么单独一页而不是塞进弹窗：新用户拿到链接时，离「能改定位」还差四步，
 // 弹窗里放不下，也不该放。弹窗只负责把人引到这儿来。
 //
@@ -179,8 +182,8 @@ const PAGE = `<!doctype html>
 </div>
 
 <div class="step">
-  <h2><span class="n">2</span>导入配置</h2>
-  <p class="why">一次装好分流规则和定位脚本，你的专属链接已经在按钮里了。</p>
+  <h2><span class="n">2</span>导入模块</h2>
+  <p class="why">模块是「加装」，不会动你现有的节点和规则。你的专属链接已经在按钮里了。</p>
   <div id="ctabox"></div>
 </div>
 
@@ -193,7 +196,7 @@ const PAGE = `<!doctype html>
     装完描述文件不会自动跳过去，得自己翻下去。这个开关没开，解密就是不生效的。
   </div>
   <div class="grid">
-    <div class="g"><img src="/tutorial/s3-01.jpg?v=__ASSETV__" alt="1" loading="lazy" onerror="ph(this)"><div class="cap"><i>1</i>底部「配置」栏，先切到这份配置让它打勾，再点右边的 ⓘ</div></div>
+    <div class="g"><img src="/tutorial/s3-01.jpg?v=__ASSETV__" alt="1" loading="lazy" onerror="ph(this)"><div class="cap"><i>1</i>底部「配置」栏，点你<b>正在用的那份配置</b>右边的 ⓘ（新装的就是 default.conf）</div></div>
     <div class="g"><img src="/tutorial/s3-02.jpg?v=__ASSETV__" alt="2" loading="lazy" onerror="ph(this)"><div class="cap"><i>2</i>找到「HTTPS 解密」，点进去</div></div>
     <div class="g"><img src="/tutorial/s3-03.jpg?v=__ASSETV__" alt="3" loading="lazy" onerror="ph(this)"><div class="cap"><i>3</i>把最上面的「HTTPS 解密」开关打开</div></div>
     <div class="g"><img src="/tutorial/s3-04.jpg?v=__ASSETV__" alt="4" loading="lazy" onerror="ph(this)"><div class="cap"><i>4</i>开关一打开会自己弹出「证书」页，点「安装证书」</div></div>
@@ -359,12 +362,12 @@ if(IN_WECHAT){
     '<div class="hint" id="ctahint">点一下，链接会自动复制到剪贴板</div>' +
     '<div class="alt"><b>然后在小火箭里这样做：</b>' +
       '<ol class="steps">' +
-        '<li>底部「<b>配置</b>」栏</li>' +
+        '<li>底部「<b>配置</b>」栏 → 点上方的「<b>模块</b>」</li>' +
         '<li>右上角 <b>+</b> 号</li>' +
         '<li>粘贴刚才复制好的链接</li>' +
-        '<li>点<b>下载</b></li>' +
-        '<li>切换到这份配置（点一下让它打勾）</li>' +
+        '<li>点<b>下载</b>，确认开关是打开的</li>' +
       '</ol>' +
+      '<b>不用切换配置</b>——模块是叠加上去的，你原来在用哪份配置就继续用哪份。' +
       '如果按钮点了没反应、或提示「网址无效」，说明这台手机还没装小火箭，' +
       '先回第一步。链接其实已经复制好了，装完自己打开小火箭按上面五步走也行。' +
     '</div>';

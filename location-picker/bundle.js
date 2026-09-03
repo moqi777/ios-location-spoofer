@@ -1,48 +1,51 @@
-// 分发物生成 —— 一键配置 /conf、模块 /module、脚本 /location-spoofer.js 的内容都在这里。
+// 分发物生成 —— 模块 /ios-location-spoofer 和脚本 /location-spoofer.js 的内容都在这里。
 //
-// 四个东西别混：
-//   配置文件 .conf  小火箭的主配置，一次只生效一份，管节点和分流规则
-//   模块 .module    叠加在配置之上的小补丁，只有 [Script] 和 [MITM] 两段
+// 三个东西别混：
+//   模块 .module    叠在用户已有配置之上的补丁，只有 [Script] / [Rule] / [MITM]
 //   脚本 .js        真正干活的 68KB 代码，被 script-path 指向，小火箭自己去下
 //   CA 证书         小火箭里现场生成、装进 iOS 并手动信任的，谁也替不了用户做
 //
-// 默认发 .conf：里面已经含了 [Script]，朋友点一次就全齐，不用先导配置再导模块。
-// .module 留着给「已经有自己配置文件」的人用，两者共用同一段 [Script] 生成逻辑。
+// 为什么只发模块，不发配置文件：
+//   一度是发整份 .conf 的，想着「朋友点一次就全齐」。实测下来那是错的——
+//   模板配置里 [Proxy] 一个节点都没有、34 条 RULE-SET 全指向 raw.githubusercontent.com
+//   （新用户正因为还没法翻墙才要装这个，根本下不动），真正跟改定位有关的只有
+//   [Script]、直连规则、[MITM] hostname 三样，而这三样模块全都能给。
+//   代价却是实打实的：要求用户切换配置，可能把他自己配好的节点和规则覆盖掉。
+//   改成只发模块之后，用户拿自己的配置（新人就是自带的 default.conf）照用，
+//   教程里「切换到这份配置」那一步也随之消失。已实测：%APPEND% 在 default.conf
+//   上生效，模块的 [Rule] 也生效。
+//
+// 一个必须记住的约束：**模块不会自动更新**（已实测）。脚本能，因为 script-path
+// 指向我们、小火箭会去拉；但模块本身改了之后，只能让每个用户手动重新导入一次。
+// 所以下面的 PATTERN 和 MITM_HOSTS 宁可写宽一点——匹配多几个主机的代价接近零，
+// 漏一个主机的代价是「所有人都要重装一遍」。
 
 const fs = require("fs");
 const path = require("path");
 
-// 苹果的定位服务不止 gs-loc 一个入口，ls.apple.com 下还有一个 GS-PE 主机池
-// （gspe1 / gspe19-cn / gspe79 / gspe85-cn …），静止时基本只走 gs-loc，
-// 一旦移动起来就会打到池子里。漏掉它们的后果不是报错，而是「改完十几秒又弹回真实位置」——
-// 我们改过的那一路生效了，没盖住的那一路把真坐标又送了回去。
-// 注意 -cn 变体：国区手机用的是 gspe19-cn-ssl 这种，上游的正则没算进去。
+// 主机部分放宽到整个 ls.apple.com，路径仍然死死限定 /clls/wloc。
+// 苹果的定位入口是一个主机池：gs-loc、gsp-ssl、gspe1、gspe19-cn、gspe79、gspe85-cn…
+// 成员随时会变，而且国区还有 -cn 变体。既然改一次要全员重装，就别按名字一个个列。
+// 过度匹配的风险很小：ls.apple.com 下不走 /clls/wloc 的请求根本进不了脚本。
 const PATTERN =
-  "^https?:\\/\\/(?:gs-loc(?:-cn)?\\.apple\\.com" +
-  "|gsp-ssl\\.ls\\.apple\\.com" +
-  "|gspe\\d+(?:-\\d+)?(?:-cn)?-ssl\\.ls\\.apple\\.com" +
-  "|gsp\\d+(?:-cn)?-ssl\\.ls\\.apple\\.com" +
-  "|gsp\\d+-ssl\\.apple\\.com" +
-  "|bluedot\\.is\\.autonavi\\.com(?:\\.gds\\.alibabadns\\.com)?)" +
-  "\\/clls\\/wloc";
+  "^https?:\\/\\/(?:" +
+  "gs-loc(?:-cn)?\\.apple\\.com" +
+  "|[a-z0-9-]+\\.ls\\.apple\\.com" +
+  "|gsp\\d*-ssl\\.apple\\.com" +
+  "|bluedot\\.is\\.autonavi\\.com(?:\\.gds\\.alibabadns\\.com)?" +
+  ")\\/clls\\/wloc";
 
-// 通配符打头，池子成员随时可能多出来；后面再把实测见过的显式列一遍，
-// 万一某个版本的小火箭通配符匹配得保守，至少这几个是稳的。
+// 同理，解密域名用通配符覆盖整个 ls.apple.com，别指望以后能补。
 const MITM_HOSTS =
-  "gs-loc.apple.com, gs-loc-cn.apple.com, gsp-ssl.ls.apple.com, " +
-  "gspe*-ssl.ls.apple.com, gsp*-ssl.ls.apple.com, " +
-  "gspe1-ssl.ls.apple.com, gspe19-ssl.ls.apple.com, gspe19-2-ssl.ls.apple.com, " +
-  "gspe19-cn-ssl.ls.apple.com, gspe35-ssl.ls.apple.com, gspe79-ssl.ls.apple.com, " +
-  "gspe85-ssl.ls.apple.com, gspe85-cn-ssl.ls.apple.com, gsp64-ssl.ls.apple.com, " +
+  "gs-loc.apple.com, gs-loc-cn.apple.com, *.ls.apple.com, " +
   "bluedot.is.autonavi.com, bluedot.is.autonavi.com.gds.alibabadns.com";
 
 const SCRIPT_PATH = "/location-spoofer.js";
-// 小火箭是拿 URL 最后一段当文件名、再补 .conf 后缀的。路径写 /conf 的话
-// 导进去就叫「conf.conf」，在配置列表里根本认不出是什么。所以路径本身要起个像样的名字，
-// 而且不能带扩展名 —— 带了会变成 xxx.conf.conf。
-const CONF_PATH = "/ios-location-spoofer";
+// 小火箭是拿 URL 最后一段当文件名、再补后缀的。路径写 /module 的话导进去就叫
+// 「module.module」，在列表里根本认不出是什么。所以路径本身要起个像样的名字，
+// 而且不能带扩展名——带了会变成 xxx.module.module。
+const MODULE_PATH = "/ios-location-spoofer";
 const SCRIPT_FILE = path.join(__dirname, "location-spoofer.js");
-const CONF_FILE = path.join(__dirname, "shadowrocket.conf");
 
 // 脚本本体读一次留在内存里 —— 68KB，比每次请求都读盘划算得多。
 // 文件缺失（比如没打进镜像）不能让进程起不来：路由自己回 404，别的功能照常。
@@ -67,7 +70,7 @@ function scriptLine(origin, token) {
 function buildModule(origin, token) {
   return [
     "#!name=iOS Location Spoofer",
-    "#!desc=拦截 Apple 定位服务器回应的 GPS 坐标，替换成自定义位置。适用于 Shadowrocket。",
+    "#!desc=拦截 Apple 定位服务器回应的 GPS 坐标，替换成自定义位置。装在任意配置上都能用。",
     "",
     "[Script]",
     scriptLine(origin, token),
@@ -87,6 +90,8 @@ function hostOf(origin) {
 }
 
 // 直连规则：节点挂了也能取坐标、更新脚本。
+// 实测过必要性——没有这条时，取坐标的请求会一路掉到 FINAL，被丢给默认代理节点，
+// 那个节点一挂定位就静默失效。模块里的规则排在 FINAL 之前，所以一定会先匹配上。
 // 裸 IP 得用 IP-CIDR，DOMAIN 匹配不上；本地开发就是这种情况，那就干脆不写这条。
 function directRule(origin) {
   const host = hostOf(origin);
@@ -95,80 +100,12 @@ function directRule(origin) {
          "DOMAIN," + host + ",DIRECT\n";
 }
 
-// 模板只读一次，但注入要按 token 做，所以这里存的是「已经改好结构、token 处留占位符」的版本。
-var confTemplate = null;
-var confError = "";
-
-function loadConf() {
-  if (confTemplate !== null || confError) return;
-  var raw;
-  try {
-    raw = fs.readFileSync(CONF_FILE, "utf8");
-  } catch (e) {
-    confError = "配置模板缺失：" + CONF_FILE;
-    console.log("⚠️  " + confError + "，/conf 将返回 404");
-    return;
-  }
-
-  // 1) 改掉 update-url。原值指向 lazy.conf 的作者仓库 —— 小火箭一更新配置就会
-  //    从那儿拉一份干净的回来，把我们注入的 [Script] 和苹果域名全冲掉，而且是静默的。
-  //    指向自己之后，更新反而变成好事：内容永远是最新的、带着正确的 token。
-  raw = raw.replace(
-    /^update-url\s*=.*$/m,
-    "update-url = __ORIGIN__" + CONF_PATH + "?token=__TOKEN__"
-  );
-
-  // 2) 自己的域名直连，插在 [Rule] 最前面。规则是从上往下匹配的，
-  //    放后面会被那一堆 RULE-SET 里的 Global.list 先抢走判成 PROXY。
-  raw = raw.replace(/^\[Rule\]$/m, "[Rule]\n__DIRECT_RULE__");
-
-  // 3) [Script] 段。原配置里没有这一段，插在 [MITM] 前面（惯例位置）。
-  raw = raw.replace(
-    /^\[MITM\]$/m,
-    "[Script]\n" +
-    "__SCRIPT_LINE__\n\n" +
-    "[MITM]"
-  );
-
-  // 4) [MITM] 的 hostname 里补上我们要拦的域名。模板自带的那份只有五个，
-  //    缺 ls.apple.com 下的 GS-PE 主机池——不补的话脚本 pattern 写得再全也没用，
-  //    那些请求根本不会被解密，脚本连看都看不到。
-  //    只动 [MITM] 段内的 hostname：别的段也可能有同名字段，全局替换会误伤。
-  var mi = raw.indexOf("[MITM]");
-  if (mi >= 0) {
-    var head = raw.slice(0, mi);
-    var tail = raw.slice(mi).replace(/^hostname\s*=\s*(.*)$/m, function (_, cur) {
-      var have = {};
-      cur.split(",").forEach(function (h) { have[h.trim()] = 1; });
-      var add = MITM_HOSTS.split(",")
-        .map(function (h) { return h.trim(); })
-        .filter(function (h) { return h && !have[h]; });
-      return "hostname = " + (add.length ? cur.trim() + "," + add.join(",") : cur.trim());
-    });
-    raw = head + tail;
-  }
-
-  confTemplate = raw;
-}
-
-function buildConf(origin, token) {
-  loadConf();
-  if (!confTemplate) return null;
-  return confTemplate
-    .split("__DIRECT_RULE__").join(directRule(origin))
-    .split("__SCRIPT_LINE__").join(scriptLine(origin, token))
-    .split("__ORIGIN__").join(origin)
-    .split("__HOST__").join(hostOf(origin))
-    .split("__TOKEN__").join(token);
-}
-
 module.exports = {
   PATTERN: PATTERN,
   MITM_HOSTS: MITM_HOSTS,
   SCRIPT_PATH: SCRIPT_PATH,
-  CONF_PATH: CONF_PATH,
+  MODULE_PATH: MODULE_PATH,
   scriptBody: function () { return scriptBody; },
   buildModule: buildModule,
-  buildConf: buildConf,
   hostOf: hostOf
 };

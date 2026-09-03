@@ -468,7 +468,7 @@ const LOGGED_PATHS = {
   "/": 1, "/loc.json": 1, "/set": 1, "/enable": 1, "/geocode": 1, "/elevation": 1, "/regeo": 1,
   // 分发相关也记：一是看得到谁什么时候导入的，二是能观察到小火箭到底会不会
   // 自动重新拉取配置和脚本 —— 这个行为文档里查不到，看日志最实在。
-  "/conf": 1, "/ios-location-spoofer": 1, "/module": 1, "/location-spoofer.js": 1, "/help": 1
+  "/ios-location-spoofer": 1, "/module": 1, "/location-spoofer.js": 1, "/help": 1
 };
 
 // X-Forwarded-For 的语义是「每层代理往尾部追加自己看到的对端地址」，所以
@@ -564,33 +564,22 @@ function handler(req, res) {
       "public, max-age=86400");
   }
 
-  // ---- 一键配置：朋友点一次就把节点规则、[Script]、MITM 域名全装好 ----
-  // /conf 是旧路径，已经发出去的配置里 update-url 还指着它，得一直留着；
-  // 新的用 /ios-location-spoofer，这样小火箭导进去的文件名才是人话。
+  // ---- 模块：唯一的分发物 ----
+  // 只发模块、不发整份配置：模块是叠加的，用户拿自己的配置（新人就是自带的
+  // default.conf）照用，不会被覆盖，教程里也就没有「切换到这份配置」那一步了。
+  // 路径特意不带扩展名——小火箭拿 URL 最后一段当文件名再补后缀，写 /module
+  // 会导成「module.module」。/module 保留为别名，之前发出去的链接还指着它。
   //
-  // 这里故意不跟着 guideOn 一起拦（/help 拦了，这里不拦），两个原因：
-  //  1. bundle.js 会把配置里的 update-url 改写成指向本路由，小火箭平时会自己
-  //     回来拉。一拦，所有已经装好的人下次自动更新就 403，而且再也收不到
-  //     脚本或域名的后续修改 —— 等于把更新链路砸了。
-  //  2. 拦了也防不住转发：token 才是唯一凭证，拿到链接的人照样能开选点页改坐标，
-  //     而选点页是产品本身，没法拦。防分享要靠管理台的设备记录去看，不是靠这里。
-  if ((url.pathname === bundle.CONF_PATH || url.pathname === "/conf") && req.method === "GET") {
-    var confOwner = resolveToken(token, res);
-    if (!confOwner || !requireActive(confOwner, res)) return;
-    res._recordDevice = true;
-    const conf = bundle.buildConf(originOf(req), confOwner.token);
-    if (!conf) return send(res, 404, "text/plain; charset=utf-8", "conf template missing");
-    res.setHeader("Content-Disposition", 'attachment; filename="ios-location-spoofer.conf"');
-    res._tokenId = confOwner.id;
-    return sendGz(req, res, 200, "text/plain; charset=utf-8", conf);
-  }
-
-  // ---- 只要模块：给已经有自己配置文件、不想被整份覆盖的人 ----
-  if (url.pathname === "/module" && req.method === "GET") {
+  // 这里故意不跟着 guideOn 一起拦（/help 拦了，这里不拦）：
+  // 拦了也防不住转发——token 才是唯一凭证，拿到链接的人照样能开选点页改坐标，
+  // 而选点页是产品本身，没法拦。防分享要靠管理台的设备记录去看，不是靠这里。
+  if ((url.pathname === bundle.MODULE_PATH || url.pathname === "/module") &&
+      req.method === "GET") {
     var modOwner = resolveToken(token, res);
     if (!modOwner || !requireActive(modOwner, res)) return;
     res._recordDevice = true;
     res.setHeader("Content-Disposition", 'attachment; filename="ios-location-spoofer.module"');
+    res._tokenId = modOwner.id;
     return sendGz(req, res, 200, "text/plain; charset=utf-8",
       bundle.buildModule(originOf(req), modOwner.token));
   }

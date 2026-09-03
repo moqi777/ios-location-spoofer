@@ -7,7 +7,7 @@ WORKDIR /app
 COPY server.js db.js admin.js admin-page.js bundle.js help-page.js ./
 # 脚本本体和配置模板要自托管：raw.githubusercontent.com 国内打不开，
 # 放 GitHub 等于让每个朋友都得先翻墙才能装上
-COPY location-spoofer.js shadowrocket.conf ./
+COPY location-spoofer.js ./
 COPY tutorial ./tutorial
 
 # 坐标、token、日志都在 /data/app.db 里，挂 Volume 到 /data 即可持久化
