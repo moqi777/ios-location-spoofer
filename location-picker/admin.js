@@ -260,6 +260,30 @@ function handle(req, res, url) {
     return json(res, 200, db.info()), true;
   }
 
+  // ---- 代理层数自检 ----
+  // TRUST_PROXY_HOPS 设错了不会报错，只会让日志里的 IP 全是基础设施地址——
+  // 看着像正常数据，实际上完全没有分辨力（曾经据此得出过错误结论）。
+  // 这里把原始转发链和每个跳数会取到的值都列出来，用一台已知公网 IP 的机器
+  // 打一下，哪个 hops 取到的是自己的 IP，就该设成几。
+  if (url.pathname === "/admin/api/whoami" && req.method === "GET") {
+    const xff = String(req.headers["x-forwarded-for"] || "");
+    const parts = xff.split(",").map(function (t) { return t.trim(); })
+      .filter(function (t) { return t !== ""; });
+    const byHop = {};
+    for (var h = 1; h <= parts.length; h += 1) byHop[h] = parts[parts.length - h];
+    return json(res, 200, {
+      xffRaw: xff,
+      chain: parts,
+      chainLength: parts.length,
+      socket: String(req.socket.remoteAddress || "").replace(/^::ffff:/, ""),
+      currentHops: proxyHops,
+      currentResult: parts.length >= proxyHops
+        ? parts[parts.length - proxyHops] : "(回落到 socket)",
+      resultByHops: byHop,
+      hint: "用已知公网 IP 的机器请求本接口，resultByHops 里等于该 IP 的那个键就是应设的 TRUST_PROXY_HOPS"
+    }), true;
+  }
+
   // ---- 下载某个归档文件 ----
   if (url.pathname === "/admin/api/archives/download" && req.method === "GET") {
     const name = url.searchParams.get("f") || "";
@@ -325,8 +349,13 @@ function handle(req, res, url) {
   return json(res, 404, { error: "not found" }), true;
 }
 
+// 跳数由 server.js 注入：解析和回落逻辑只该有一份，抄过来迟早会不同步
+var proxyHops = 1;
+function setProxyHops(n) { proxyHops = n; }
+
 module.exports = {
   enabled: enabled,
   handle: handle,
+  setProxyHops: setProxyHops,
   ADMIN_TOKEN: ADMIN_TOKEN
 };

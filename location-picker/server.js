@@ -486,6 +486,7 @@ const TRUST_PROXY_HOPS = (function () {
   }
   return n;
 })();
+admin.setProxyHops(TRUST_PROXY_HOPS);
 
 function clientIp(req) {
   const direct = String(req.socket.remoteAddress || "").replace(/^::ffff:/, "");
