@@ -12,12 +12,28 @@
 const fs = require("fs");
 const path = require("path");
 
+// 苹果的定位服务不止 gs-loc 一个入口，ls.apple.com 下还有一个 GS-PE 主机池
+// （gspe1 / gspe19-cn / gspe79 / gspe85-cn …），静止时基本只走 gs-loc，
+// 一旦移动起来就会打到池子里。漏掉它们的后果不是报错，而是「改完十几秒又弹回真实位置」——
+// 我们改过的那一路生效了，没盖住的那一路把真坐标又送了回去。
+// 注意 -cn 变体：国区手机用的是 gspe19-cn-ssl 这种，上游的正则没算进去。
 const PATTERN =
-  "^https?:\\/\\/(?:gs-loc(?:-cn)?\\.apple\\.com|gsp-ssl\\.ls\\.apple\\.com|" +
-  "bluedot\\.is\\.autonavi\\.com(?:\\.gds\\.alibabadns\\.com)?)\\/clls\\/wloc";
+  "^https?:\\/\\/(?:gs-loc(?:-cn)?\\.apple\\.com" +
+  "|gsp-ssl\\.ls\\.apple\\.com" +
+  "|gspe\\d+(?:-\\d+)?(?:-cn)?-ssl\\.ls\\.apple\\.com" +
+  "|gsp\\d+(?:-cn)?-ssl\\.ls\\.apple\\.com" +
+  "|gsp\\d+-ssl\\.apple\\.com" +
+  "|bluedot\\.is\\.autonavi\\.com(?:\\.gds\\.alibabadns\\.com)?)" +
+  "\\/clls\\/wloc";
 
+// 通配符打头，池子成员随时可能多出来；后面再把实测见过的显式列一遍，
+// 万一某个版本的小火箭通配符匹配得保守，至少这几个是稳的。
 const MITM_HOSTS =
   "gs-loc.apple.com, gs-loc-cn.apple.com, gsp-ssl.ls.apple.com, " +
+  "gspe*-ssl.ls.apple.com, gsp*-ssl.ls.apple.com, " +
+  "gspe1-ssl.ls.apple.com, gspe19-ssl.ls.apple.com, gspe19-2-ssl.ls.apple.com, " +
+  "gspe19-cn-ssl.ls.apple.com, gspe35-ssl.ls.apple.com, gspe79-ssl.ls.apple.com, " +
+  "gspe85-ssl.ls.apple.com, gspe85-cn-ssl.ls.apple.com, gsp64-ssl.ls.apple.com, " +
   "bluedot.is.autonavi.com, bluedot.is.autonavi.com.gds.alibabadns.com";
 
 const SCRIPT_PATH = "/location-spoofer.js";
@@ -113,6 +129,24 @@ function loadConf() {
     "__SCRIPT_LINE__\n\n" +
     "[MITM]"
   );
+
+  // 4) [MITM] 的 hostname 里补上我们要拦的域名。模板自带的那份只有五个，
+  //    缺 ls.apple.com 下的 GS-PE 主机池——不补的话脚本 pattern 写得再全也没用，
+  //    那些请求根本不会被解密，脚本连看都看不到。
+  //    只动 [MITM] 段内的 hostname：别的段也可能有同名字段，全局替换会误伤。
+  var mi = raw.indexOf("[MITM]");
+  if (mi >= 0) {
+    var head = raw.slice(0, mi);
+    var tail = raw.slice(mi).replace(/^hostname\s*=\s*(.*)$/m, function (_, cur) {
+      var have = {};
+      cur.split(",").forEach(function (h) { have[h.trim()] = 1; });
+      var add = MITM_HOSTS.split(",")
+        .map(function (h) { return h.trim(); })
+        .filter(function (h) { return h && !have[h]; });
+      return "hostname = " + (add.length ? cur.trim() + "," + add.join(",") : cur.trim());
+    });
+    raw = head + tail;
+  }
 
   confTemplate = raw;
 }
