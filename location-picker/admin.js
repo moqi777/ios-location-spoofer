@@ -248,6 +248,7 @@ function handle(req, res, url) {
       from: url.searchParams.get("from"),
       to: url.searchParams.get("to"),
       onlyErrors: url.searchParams.get("errors") === "1",
+      path: url.searchParams.get("path"),
       limit: url.searchParams.get("limit"),
       offset: url.searchParams.get("offset")
     });

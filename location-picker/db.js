@@ -230,6 +230,13 @@ const MIGRATIONS = [
   //     就该能直接把引导关掉，而不是伪造一个激活时间去骗前端。两者分开，卡片才不会说谎。
   function (d) {
     d.exec("ALTER TABLE tokens ADD COLUMN guide_off INTEGER NOT NULL DEFAULT 0");
+  },
+  // v7：日志按接口筛选。没有这个索引的话，选了「只看 /loc.json」就是一次全表扫描——
+  // /loc.json 本身占了日志的绝大多数，最该被筛掉的反而最慢。
+  // 建成 (path, ts) 复合索引而不是单列：日志查询几乎总是「某接口 + 某时间段」，
+  // 复合索引两个条件一起用得上，单列索引只能过滤完再回表排序。
+  function (d) {
+    d.exec("CREATE INDEX IF NOT EXISTS idx_logs_path_ts ON logs(path, ts)");
   }
 ];
 
@@ -956,6 +963,21 @@ function queryLogs(opts) {
   if (opts.from) { where.push("l.ts >= ?"); args.push(dayStartMs(opts.from)); }
   if (opts.to) { where.push("l.ts < ?"); args.push(dayStartMs(opts.to) + 86400000); }
   if (opts.onlyErrors) { where.push("l.status >= 400"); }
+  // 接口筛选。逗号分隔支持一次选多条路径 —— /ios-location-spoofer 和 /module
+  // 是同一个模块的两个地址，界面上是一个选项，这里要一起匹配上。
+  if (opts.path) {
+    const paths = String(opts.path).split(",")
+      .map(function (t) { return t.trim(); })
+      .filter(function (t) { return t !== ""; })
+      .slice(0, 20);   // 上限纯粹是防止有人拼一条几千项的 IN 把查询拖垮
+    if (paths.length === 1) {
+      where.push("l.path = ?");
+      args.push(paths[0]);
+    } else if (paths.length > 1) {
+      where.push("l.path IN (" + paths.map(function () { return "?"; }).join(",") + ")");
+      args.push.apply(args, paths);
+    }
+  }
   const clause = where.length ? " WHERE " + where.join(" AND ") : "";
   const limit = Math.min(Math.max(Number(opts.limit) || 100, 1), 500);
   const offset = Math.max(Number(opts.offset) || 0, 0);

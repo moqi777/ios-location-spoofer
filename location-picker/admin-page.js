@@ -164,6 +164,27 @@ const PAGE = `<!doctype html>
     <div class="card">
       <div class="row">
         <select id="f-token"><option value="">全部 Token</option></select>
+        <select id="f-path">
+          <option value="">全部接口</option>
+          <optgroup label="手机端（小火箭）">
+            <option value="/loc.json">/loc.json　取坐标</option>
+            <option value="/ios-location-spoofer,/module">模块下载</option>
+            <option value="/location-spoofer.js">/location-spoofer.js　脚本</option>
+          </optgroup>
+          <optgroup label="用户操作">
+            <option value="/set">/set　保存定位</option>
+            <option value="/enable">/enable　开关伪造</option>
+          </optgroup>
+          <optgroup label="网页">
+            <option value="/">/　选点页</option>
+            <option value="/help">/help　教程页</option>
+          </optgroup>
+          <optgroup label="辅助查询">
+            <option value="/geocode">/geocode　搜地名</option>
+            <option value="/regeo">/regeo　反查地址</option>
+            <option value="/elevation">/elevation　查海拔</option>
+          </optgroup>
+        </select>
         <input type="date" id="f-from"><span class="muted">→</span><input type="date" id="f-to">
         <label class="muted row" style="gap:4px"><input type="checkbox" id="f-err" style="width:auto">仅错误</label>
         <button class="act" id="f-go">查询</button>
@@ -546,6 +567,10 @@ function loadLogs(reset){
   if($("f-from").value) q += "&from=" + $("f-from").value;
   if($("f-to").value) q += "&to=" + $("f-to").value;
   if($("f-err").checked) q += "&errors=1";
+  // 值可能是「/ios-location-spoofer,/module」这种多路径，逗号要转义，
+  // 否则会被当成 query 分隔符的一部分，后端拿到的路径是断的
+  var fpath = $("f-path").value;
+  if(fpath !== "") q += "&path=" + encodeURIComponent(fpath);
   api(q).then(function(d){
     if(!d.rows.length){
       $("logs").innerHTML = '<div class="muted">' + (logOffset ? "没有更多了" : "没有匹配的记录") + '</div>';
