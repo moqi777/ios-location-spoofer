@@ -886,6 +886,16 @@ const PAGE = `<!doctype html>
   .setup b{display:block;font-size:15px;margin-bottom:2px}
   .setup a.go{display:inline-block;margin-top:6px;padding:8px 14px;border-radius:8px;
     background:#ff9500;color:#fff;text-decoration:none;font-weight:600;font-size:14px}
+  /* ── 公告（临时）：跟下面标着「公告」的 HTML、JS 三段一起删就干净了 ── */
+  .notice{margin:0 8px 8px;padding:12px 14px;border-radius:10px;
+    background:#eef4ff;border:1px solid #c9dcff;color:#1c3d6e;font-size:14px;line-height:1.6}
+  .notice b.t{display:block;font-size:15px;color:#0a2a55;margin-bottom:4px}
+  .notice p{margin:6px 0}
+  .notice ol{margin:6px 0 10px;padding-left:22px}
+  .notice li{margin:3px 0}
+  .notice button{padding:10px 16px;font-size:15px;border:0;border-radius:8px;
+    background:#007aff;color:#fff;font-weight:600}
+  .notice .fine{color:#5b7699;font-size:12.5px;margin:8px 0 0}
   .foot{padding:14px 12px 22px;color:#999;font-size:12px;line-height:1.5;text-align:center}
   .mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;
     display:none;align-items:center;justify-content:center;padding:20px}
@@ -903,6 +913,23 @@ const PAGE = `<!doctype html>
 <body>
 __WHOBAR__
 <div id="setup"></div>
+<!-- ── 公告（临时）：09-03 模块更新提醒。模块不会自动更新，只能挨个通知用户
+     手动重导一次。等人都换完了，把这段连同 .notice 的 CSS 和下面的复制脚本
+     一起删掉，删干净了也不影响任何其它功能。 ── -->
+<div class="notice">
+  <b class="t">09-03 更新：修好了「一动定位就跳回真实位置」</b>
+  <p>之前骑车、坐车这类快速移动的时候，改好的位置会在十几秒后弹回真实位置（在室内不动倒是正常）。原因已经查到并修复。</p>
+  <p><b>模块不会自动更新，要请你手动换一次</b>，一分钟：</p>
+  <ol>
+    <li>点下面的按钮，复制新模块链接</li>
+    <li>打开小火箭 &rarr; 底部「<b>配置</b>」&rarr; 上方「<b>模块</b>」</li>
+    <li>把旧的那条「<b>ios-location-spoofer</b>」<b>向左滑，删掉</b></li>
+    <li>右上角 <b>+</b> &rarr; 粘贴链接 &rarr; 点「<b>下载</b>」</li>
+    <li>确认新模块右边的开关是打开的</li>
+  </ol>
+  <button id="cpmod">复制模块链接</button>
+  <p class="fine">只换模块这一样东西：配置不用切，HTTPS 解密和证书都不用再设一遍。</p>
+</div>
 <div class="bar">
   <input id="q" placeholder="搜地名，回车列出候选（只预览，不改定位）">
   <button id="locatebtn" disabled>当前位置</button>
@@ -935,8 +962,6 @@ var IN_WECHAT = /MicroMessenger/i.test(navigator.userAgent);
 // 没装好之前，定位是不会变的 —— 但页面看起来一切正常，用户完全察觉不到。
 // 所以未激活时顶部常驻一张卡，首次进来另外弹一次窗（localStorage 保证只弹一次）。
 // 判据是服务端的 activated_at：只有小火箭真的来取过坐标才会置位，骗不了。
-function confUrl(){ return location.origin + "/conf?token=" + encodeURIComponent(token); }
-function importHref(){ return "shadowrocket://install?config=" + encodeURIComponent(confUrl()); }
 function helpHref(){ return "/help?token=" + encodeURIComponent(token); }
 
 function renderSetup(){
@@ -1398,6 +1423,36 @@ $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);
 $("favadd").addEventListener("click",addFavorite);
 $("favlistbtn").addEventListener("click",toggleFavs);
+
+// ── 公告（临时）：复制模块链接。跟上面那段公告一起删 ──
+// execCommand 是同步的，iOS Safari 上比 clipboard.writeText 稳；两条都走一遍，
+// 谁成了算谁的。全失败就把链接原样显示出来，让用户长按自己复制。
+(function(){
+  var b = $("cpmod");
+  if(!b || !token) return;
+  b.addEventListener("click", function(){
+    var url = location.origin + "/ios-location-spoofer?token=" + encodeURIComponent(token);
+    var ok = false;
+    var ta = document.createElement("textarea");
+    ta.value = url; ta.style.position = "fixed"; ta.style.top = "0"; ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.setSelectionRange(0, url.length);
+    try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
+    document.body.removeChild(ta);
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      try { navigator.clipboard.writeText(url); ok = true; } catch(e){}
+    }
+    if(ok){
+      b.textContent = "\u2713 已复制，去小火箭粘贴";
+      toast("模块链接已复制");
+    } else if(!$("cpmodurl")){
+      b.textContent = "复制失败，请长按下面的链接";
+      b.insertAdjacentHTML("afterend",
+        '<p class="fine" id="cpmodurl" style="word-break:break-all;user-select:all">' + url + '</p>');
+    }
+  });
+})();
+
 renderSetup();
 showFirstRun();
 load();
