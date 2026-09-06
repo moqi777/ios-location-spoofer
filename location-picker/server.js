@@ -883,6 +883,7 @@ const PAGE = `<!doctype html>
   .rrow .fdel{padding:6px 10px;font-size:13px;border:0;border-radius:6px;background:#ff3b30;color:#fff;flex-shrink:0}
   #map{height:52vh}
   #info{padding:8px 10px;font-size:13px;line-height:1.4}
+  .opts.btns{padding-top:0}
   .opts{padding:6px 10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
   .opts label{font-size:13px;color:#444;display:flex;flex-direction:column}
   .optnote{padding:0 10px 12px;color:#8a8a8e;font-size:12px;line-height:1.6}
@@ -944,10 +945,7 @@ __WHOBAR__
   <label>海拔(米)<input id="alt" type="number" inputmode="numeric"></label>
   <label>水平精度<input id="hacc" type="number" inputmode="numeric"></label>
   <label>垂直精度<input id="vacc" type="number" inputmode="numeric"></label>
-  <button id="savebtn">保存定位</button>
-  <button id="restorebtn">恢复真实定位</button>
-  <button id="favadd">收藏此点</button>
-  <button id="favlistbtn">我的收藏</button>
+</div>
 </div>
 <div class="jbox">
   <div class="jhead">抗检测漂移</div>
@@ -961,8 +959,13 @@ __WHOBAR__
     <div class="jli"><b>坐标漂移</b>：在你选的点周围，这个米数的范围内随机移动。</div>
     <div class="jli"><b>精度漂移</b>：在上面「水平精度」的基础上<b>随机往上加</b> 0 到这个米数，只加不减。
       <br><span class="jeg">例：水平精度填 10、精度漂移填 5 → 实际在 10～15 之间随机</span></div>
-    两个都<b>填 0 就是关闭</b>，保持完全静止。
+    两个都<b>填 0 就是关闭</b>，保持完全静止。改完要点下面的<b>「保存定位」</b>才生效。
   </div>
+<div class="opts btns">
+  <button id="savebtn">保存定位</button>
+  <button id="restorebtn">恢复真实定位</button>
+  <button id="favadd">收藏此点</button>
+  <button id="favlistbtn">我的收藏</button>
 </div>
 <div class="results" id="favs"></div>
 <div class="foot">重装或换机后需要重新配置导入，请联系管理员处理</div>
