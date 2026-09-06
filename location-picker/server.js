@@ -902,16 +902,19 @@ const PAGE = `<!doctype html>
   .setup b{display:block;font-size:15px;margin-bottom:2px}
   .setup a.go{display:inline-block;margin-top:6px;padding:8px 14px;border-radius:8px;
     background:#ff9500;color:#fff;text-decoration:none;font-weight:600;font-size:14px}
-  /* ── 公告（临时）：跟下面标着「公告」的 HTML、JS 三段一起删就干净了 ── */
-  .notice{margin:0 8px 8px;padding:12px 14px;border-radius:10px;
-    background:#eef4ff;border:1px solid #c9dcff;color:#1c3d6e;font-size:14px;line-height:1.6}
-  .notice b.t{display:block;font-size:15px;color:#0a2a55;margin-bottom:4px}
-  .notice p{margin:6px 0}
-  .notice ol{margin:6px 0 10px;padding-left:22px}
-  .notice li{margin:3px 0}
-  .notice button{padding:10px 16px;font-size:15px;border:0;border-radius:8px;
-    background:#007aff;color:#fff;font-weight:600}
-  .notice .fine{color:#5b7699;font-size:12.5px;margin:8px 0 0}
+  /* 漂移单独成块：这两个输入框和上面那排（海拔/精度）不是一回事，
+     混在同一行里、说明文字挂在最下面的话，用户根本认不出小字在说哪个框 */
+  .jbox{margin:2px 10px 12px;padding:10px 12px;border:1px solid #e5e5ea;
+    border-radius:10px;background:#fafafa}
+  .jhead{font-size:13px;font-weight:600;color:#3a3a3c;margin-bottom:8px}
+  .jrow{display:flex;flex-wrap:wrap;gap:10px}
+  .jrow label{font-size:13px;color:#444;display:flex;flex-direction:column}
+  .jrow input{width:96px;padding:8px;font-size:15px;border:1px solid #ccc;
+    border-radius:6px;margin-top:2px}
+  .jnote{margin-top:9px;color:#8a8a8e;font-size:12px;line-height:1.65}
+  .jnote b{color:#5a5a5e}
+  .jli{margin:4px 0 0 2px;padding-left:9px;border-left:2px solid #e0e0e5}
+  .jeg{color:#a0a0a5}
   .foot{padding:14px 12px 22px;color:#999;font-size:12px;line-height:1.5;text-align:center}
   .mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;
     display:none;align-items:center;justify-content:center;padding:20px}
@@ -929,23 +932,6 @@ const PAGE = `<!doctype html>
 <body>
 __WHOBAR__
 <div id="setup"></div>
-<!-- ── 公告（临时）：09-03 模块更新提醒。模块不会自动更新，只能挨个通知用户
-     手动重导一次。等人都换完了，把这段连同 .notice 的 CSS 和下面的复制脚本
-     一起删掉，删干净了也不影响任何其它功能。 ── -->
-<div class="notice">
-  <b class="t">09-03 更新：修好了「一动定位就跳回真实位置」</b>
-  <p>之前骑车、坐车这类快速移动的时候，改好的位置会在十几秒后弹回真实位置（在室内不动倒是正常）。原因已经查到并修复。</p>
-  <p><b>模块不会自动更新，要请你手动换一次</b>，一分钟：</p>
-  <ol>
-    <li>点下面的按钮，复制新模块链接</li>
-    <li>打开小火箭 &rarr; 底部「<b>配置</b>」&rarr; 上方「<b>模块</b>」</li>
-    <li>把旧的那条「<b>ios-location-spoofer</b>」<b>向左滑，删掉</b></li>
-    <li>右上角 <b>+</b> &rarr; 粘贴链接 &rarr; 点「<b>下载</b>」</li>
-    <li>确认新模块右边的开关是打开的</li>
-  </ol>
-  <button id="cpmod">复制模块链接</button>
-  <p class="fine">只换模块这一样东西：配置不用切，HTTPS 解密和证书都不用再设一遍。</p>
-</div>
 <div class="bar">
   <input id="q" placeholder="搜地名，回车列出候选（只预览，不改定位）">
   <button id="locatebtn" disabled>当前位置</button>
@@ -958,18 +944,25 @@ __WHOBAR__
   <label>海拔(米)<input id="alt" type="number" inputmode="numeric"></label>
   <label>水平精度<input id="hacc" type="number" inputmode="numeric"></label>
   <label>垂直精度<input id="vacc" type="number" inputmode="numeric"></label>
-  <label>坐标漂移(米)<input id="jit" type="number" inputmode="numeric" min="0" max="50"></label>
-  <label>精度漂移(米)<input id="ajit" type="number" inputmode="numeric" min="0" max="50"></label>
   <button id="savebtn">保存定位</button>
   <button id="restorebtn">恢复真实定位</button>
   <button id="favadd">收藏此点</button>
   <button id="favlistbtn">我的收藏</button>
 </div>
-<div class="optnote">
-  真机的定位不会一动不动 —— 人站着不动，GPS 读数也会有几米的自然漂移。
-  这两项让坐标和精度<b>每 15 秒</b>在你设定的值附近随机微调一次，更像真实设备。
-  坐标在设定点周围的范围内漂；精度只往上加、不往下减（往下会声称出比手机硬件还好的精度，反而不真实）。
-  <b>填 0 关闭。</b>
+<div class="jbox">
+  <div class="jhead">抗检测漂移</div>
+  <div class="jrow">
+    <label>坐标漂移(米)<input id="jit" type="number" inputmode="numeric" min="0" max="50"></label>
+    <label>精度漂移(米)<input id="ajit" type="number" inputmode="numeric" min="0" max="50"></label>
+  </div>
+  <div class="jnote">
+    真机就算人站着不动，GPS 读数也会有几米的自然漂移 —— 一个纹丝不动的坐标反而不正常。
+    这两个值会让定位<b>每 15 秒</b>自动微调一次：
+    <div class="jli"><b>坐标漂移</b>：在你选的点周围，这个米数的范围内随机移动。</div>
+    <div class="jli"><b>精度漂移</b>：在上面「水平精度」的基础上<b>随机往上加</b> 0 到这个米数，只加不减。
+      <br><span class="jeg">例：水平精度填 10、精度漂移填 5 → 实际在 10～15 之间随机</span></div>
+    两个都<b>填 0 就是关闭</b>，保持完全静止。
+  </div>
 </div>
 <div class="results" id="favs"></div>
 <div class="foot">重装或换机后需要重新配置导入，请联系管理员处理</div>
@@ -1450,35 +1443,6 @@ $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);
 $("favadd").addEventListener("click",addFavorite);
 $("favlistbtn").addEventListener("click",toggleFavs);
-
-// ── 公告（临时）：复制模块链接。跟上面那段公告一起删 ──
-// execCommand 是同步的，iOS Safari 上比 clipboard.writeText 稳；两条都走一遍，
-// 谁成了算谁的。全失败就把链接原样显示出来，让用户长按自己复制。
-(function(){
-  var b = $("cpmod");
-  if(!b || !token) return;
-  b.addEventListener("click", function(){
-    var url = location.origin + "/ios-location-spoofer?token=" + encodeURIComponent(token);
-    var ok = false;
-    var ta = document.createElement("textarea");
-    ta.value = url; ta.style.position = "fixed"; ta.style.top = "0"; ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.focus(); ta.setSelectionRange(0, url.length);
-    try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
-    document.body.removeChild(ta);
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      try { navigator.clipboard.writeText(url); ok = true; } catch(e){}
-    }
-    if(ok){
-      b.textContent = "\u2713 已复制，去小火箭粘贴";
-      toast("模块链接已复制");
-    } else if(!$("cpmodurl")){
-      b.textContent = "复制失败，请长按下面的链接";
-      b.insertAdjacentHTML("afterend",
-        '<p class="fine" id="cpmodurl" style="word-break:break-all;user-select:all">' + url + '</p>');
-    }
-  });
-})();
 
 renderSetup();
 showFirstRun();
