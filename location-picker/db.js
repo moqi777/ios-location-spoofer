@@ -20,8 +20,67 @@ const DEFAULT = {
   longitude: -122.00902,
   altitude: 530,
   horizontalAccuracy: 39,
-  verticalAccuracy: 1000
+  verticalAccuracy: 1000,
+  // 抗检测抖动。真机哪怕人站着不动，GPS 读数也一直在几米范围内漂；
+  // 我们给一个纹丝不动的坐标，连续观察几分钟就露馅了。
+  jitterMeters: 3,   // 坐标在选定点周围多大半径内漂
+  accJitter: 2       // 精度在基准值上最多往上加几米（只加不减，见 jitterLocation）
 };
+
+// 抖动的时间粒度。这个值不能想当然，取决于 iOS 的请求形态：
+// 实测日志里 iOS 是「同一秒并发 6 个定位查询」（对应苹果的 gspe 主机池），
+// 两次查询之间隔 30~150 秒。如果按请求随机，那 6 个并发会拿到 6 个不同坐标——
+// 同一瞬间一台设备出现在 6 个位置，比一动不动假得多。
+// 所以按时间分桶：15 秒远大于一次突发（≤2 秒）、又远小于两次查询的间隔，
+// 既保证并发一致，又保证每次查询都是新值。
+const JITTER_BUCKET_MS = 15000;
+
+// 确定性伪随机：同一个 (token, 时间桶, salt) 永远得到同一个数。
+// 用它而不是 Math.random()，是因为并发的那几个请求必须算出完全一样的偏移，
+// 而这样做不需要任何共享状态、不用加锁、也不用落库。
+function jitterRand(tokenId, bucket, salt) {
+  var h = (Math.imul(tokenId | 0, 2654435761) ^ Math.imul(bucket | 0, 40503) ^ Math.imul(salt | 0, 2246822519)) | 0;
+  h = Math.imul(h ^ (h >>> 15), 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 3266489917);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;   // [0,1)
+}
+
+// 把基准坐标按当前时间桶抖一下。纯函数，不碰数据库。
+function jitterLocation(loc, tokenId, nowMs) {
+  const out = Object.assign({}, loc);
+  const bucket = Math.floor((nowMs || Date.now()) / JITTER_BUCKET_MS);
+
+  // 这里再夹一次范围，不是重复劳动：写库那层夹过，但这是个纯函数，
+  // 任何人拿一行脏数据（手改的库、以后新加的写入路径）调它，都不该能算出
+  // 一个非法坐标——纬度跑到 -1347 的话，脚本塞进 protobuf 的就是垃圾。
+  const jm = Math.min(Math.max(Number(loc.jitterMeters) || 0, 0), 50);
+  if (jm > 0) {
+    // 圆内均匀取点：半径要开方，否则点会往圆心堆，长期看是个一眼可辨的分布
+    const ang = jitterRand(tokenId, bucket, 1) * 2 * Math.PI;
+    const rad = Math.sqrt(jitterRand(tokenId, bucket, 2)) * jm;
+    const cosLat = Math.cos(loc.latitude * Math.PI / 180);
+    out.latitude = loc.latitude + (rad * Math.cos(ang)) / 111320;
+    // 极点附近 cos→0，除下去会炸成无穷大；那种纬度上经度本来也没意义，直接不抖
+    out.longitude = Math.abs(cosLat) < 1e-6
+      ? loc.longitude
+      : loc.longitude + (rad * Math.sin(ang)) / (111320 * cosLat);
+    if (!isFinite(out.latitude) || out.latitude < -90 || out.latitude > 90 ||
+        !isFinite(out.longitude) || out.longitude < -180 || out.longitude > 180) {
+      out.latitude = loc.latitude;
+      out.longitude = loc.longitude;
+    }
+  }
+
+  const aj = Math.min(Math.max(Number(loc.accJitter) || 0, 0), 50);
+  if (aj > 0) {
+    // 只往上加，不往下减：往下会声称出比 iPhone 硬件更好的精度（比如 1 米），
+    // 那才是真的假。脚本里 horizontalAccuracy 会被 Math.trunc 成整数塞进 varint，
+    // 所以这里直接产出整数，给小数没有意义。
+    out.horizontalAccuracy = loc.horizontalAccuracy +
+      Math.floor(jitterRand(tokenId, bucket, 3) * (Math.floor(aj) + 1));
+  }
+  return out;
+}
 
 // 环境变量一律走这里：非法值回落到默认并告警，绝不让 NaN 流进来。
 // TZ_OFFSET_MIN=Asia/Shanghai 这种写法会让 new Date(NaN).toISOString() 直接抛异常，
@@ -237,6 +296,13 @@ const MIGRATIONS = [
   // 复合索引两个条件一起用得上，单列索引只能过滤完再回表排序。
   function (d) {
     d.exec("CREATE INDEX IF NOT EXISTS idx_logs_path_ts ON logs(path, ts)");
+  },
+  // v8：抗检测抖动。默认给所有存量用户也开上（3 米 / 2 米）——
+  // 这两个值小到不影响任何「必须在范围内」的场景（打卡范围通常几十上百米），
+  // 但足以让坐标不再是一个纹丝不动的常量。想关的人页面上填 0 即可。
+  function (d) {
+    d.exec("ALTER TABLE locations ADD COLUMN jitter_m REAL NOT NULL DEFAULT 3");
+    d.exec("ALTER TABLE locations ADD COLUMN acc_jitter INTEGER NOT NULL DEFAULT 2");
   }
 ];
 
@@ -507,8 +573,18 @@ function readLocation(tokenId) {
     altitude: row.altitude,
     horizontalAccuracy: row.horizontalAccuracy,
     verticalAccuracy: row.verticalAccuracy,
+    jitterMeters: row.jitter_m,
+    accJitter: row.acc_jitter,
     address: row.address || ""
   };
+}
+
+// 抖动值来自用户输入框，非法/超范围一律回落，绝不让 NaN 进库——
+// NaN 存进去之后 jitterLocation 会算出 NaN 坐标，脚本拿到就整个失效。
+function clampNum(v, lo, hi, def) {
+  const n = Number(v);
+  if (!isFinite(n)) return def;
+  return Math.min(Math.max(n, lo), hi);
 }
 
 function writeLocation(tokenId, obj) {
@@ -518,16 +594,23 @@ function writeLocation(tokenId, obj) {
   const prev = getLocationRow(tokenId);
   const same = prev && prev.latitude === v.latitude && prev.longitude === v.longitude;
   const addr = typeof v.address === "string" ? v.address : (same ? (prev.address || "") : "");
+  // 夹紧后写回 v 本身，而不是只夹 .run() 的参数：这个函数的返回值会被
+  // /set 直接回给前端。只夹参数的话，用户填 999 会收到「已保存 999」，
+  // 而库里其实是 50，下次刷新数字自己变了——等于接口在骗人。
+  v.jitterMeters = clampNum(v.jitterMeters, 0, 50, DEFAULT.jitterMeters);
+  v.accJitter = Math.round(clampNum(v.accJitter, 0, 50, DEFAULT.accJitter));
   prep(
-    "INSERT INTO locations (token_id, enabled, latitude, longitude, altitude, horizontalAccuracy, verticalAccuracy, address, updated_at)" +
-    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)" +
+    "INSERT INTO locations (token_id, enabled, latitude, longitude, altitude, horizontalAccuracy, verticalAccuracy, jitter_m, acc_jitter, address, updated_at)" +
+    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" +
     " ON CONFLICT(token_id) DO UPDATE SET enabled=excluded.enabled, latitude=excluded.latitude," +
     " longitude=excluded.longitude, altitude=excluded.altitude," +
     " horizontalAccuracy=excluded.horizontalAccuracy, verticalAccuracy=excluded.verticalAccuracy," +
+    " jitter_m=excluded.jitter_m, acc_jitter=excluded.acc_jitter," +
     " address=excluded.address, updated_at=excluded.updated_at"
   ).run(
     tokenId, v.enabled ? 1 : 0, v.latitude, v.longitude,
     Math.round(v.altitude), Math.round(v.horizontalAccuracy), Math.round(v.verticalAccuracy),
+    v.jitterMeters, v.accJitter,
     addr, Date.now()
   );
   // 坐标变了才留一条历史。/enable 拨开关、或者同一个点重复保存都会走到这里，
@@ -1101,6 +1184,8 @@ module.exports = {
   deleteToken: deleteToken,
   touchToken: touchToken,
   readLocation: readLocation,
+  jitterLocation: jitterLocation,
+  JITTER_BUCKET_MS: JITTER_BUCKET_MS,
   writeLocation: writeLocation,
   setAddressIfCoordsMatch: setAddressIfCoordsMatch,
   listHistory: listHistory,

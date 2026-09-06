@@ -681,6 +681,11 @@ function handler(req, res) {
       try { db.markActivated(owner.id); } catch (e) { /* 记不上不影响取坐标 */ }
     }
     var loc = db.readLocation(owner.id);
+    // 只给脚本抖，浏览器不抖：选点页也拉这个接口回显当前设置，
+    // 抖了的话用户会看到自己填的数字每隔几秒自己在变，以为存错了。
+    if (db.isSpoofClient(req.headers["user-agent"])) {
+      loc = db.jitterLocation(loc, owner.id, Date.now());
+    }
     // 停用不是拒绝，而是「还你真实定位」：脚本收到 enabled:false 会放行原始响应。
     // 若回 403，脚本反而会回落到模块里写死的坐标（默认是苹果总部），体验上像是坏了。
     if (owner.status !== "active") {
@@ -723,6 +728,15 @@ function handler(req, res) {
         setInt("altitude", j.altitude);
         setInt("horizontalAccuracy", j.horizontalAccuracy);
         setInt("verticalAccuracy", j.verticalAccuracy);
+        // 抖动量：0 = 关闭，所以不能走 setInt 的「空值跳过」那套，
+        // 0 是合法输入，必须能存进去。范围由 db.writeLocation 兜底夹紧。
+        function setNum(key, v) {
+          if (v !== undefined && v !== null && v !== "" && isFinite(Number(v))) {
+            cur[key] = Number(v);
+          }
+        }
+        setNum("jitterMeters", j.jitterMeters);
+        setNum("accJitter", j.accJitter);
         const saved = db.writeLocation(setOwner.id, cur);
         resolveAddress(setOwner.id, la, lo);        // 不 await：地址在后台补
         res._detail = la.toFixed(5) + "," + lo.toFixed(5);
@@ -871,6 +885,8 @@ const PAGE = `<!doctype html>
   #info{padding:8px 10px;font-size:13px;line-height:1.4}
   .opts{padding:6px 10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
   .opts label{font-size:13px;color:#444;display:flex;flex-direction:column}
+  .optnote{padding:0 10px 12px;color:#8a8a8e;font-size:12px;line-height:1.6}
+  .optnote b{color:#5a5a5e}
   .opts input{width:88px;padding:8px;font-size:15px;border:1px solid #ccc;border-radius:6px;margin-top:2px}
   #savebtn{padding:11px 20px;font-size:16px;border:0;border-radius:8px;background:#34c759;color:#fff;font-weight:600}
   #restorebtn{padding:11px 16px;font-size:15px;border:0;border-radius:8px;background:#8e8e93;color:#fff}
@@ -942,10 +958,18 @@ __WHOBAR__
   <label>海拔(米)<input id="alt" type="number" inputmode="numeric"></label>
   <label>水平精度<input id="hacc" type="number" inputmode="numeric"></label>
   <label>垂直精度<input id="vacc" type="number" inputmode="numeric"></label>
+  <label>坐标漂移(米)<input id="jit" type="number" inputmode="numeric" min="0" max="50"></label>
+  <label>精度漂移(米)<input id="ajit" type="number" inputmode="numeric" min="0" max="50"></label>
   <button id="savebtn">保存定位</button>
   <button id="restorebtn">恢复真实定位</button>
   <button id="favadd">收藏此点</button>
   <button id="favlistbtn">我的收藏</button>
+</div>
+<div class="optnote">
+  真机的定位不会一动不动 —— 人站着不动，GPS 读数也会有几米的自然漂移。
+  这两项让坐标和精度<b>每 15 秒</b>在你设定的值附近随机微调一次，更像真实设备。
+  坐标在设定点周围的范围内漂；精度只往上加、不往下减（往下会声称出比手机硬件还好的精度，反而不真实）。
+  <b>填 0 关闭。</b>
 </div>
 <div class="results" id="favs"></div>
 <div class="foot">重装或换机后需要重新配置导入，请联系管理员处理</div>
@@ -1232,7 +1256,8 @@ function movePin(dispLat,dispLng){
 // 保存定位点到设备（写入 loc.json，Shadowrocket 才会用）
 function commit(){
   var payload={lat:WGS.lat, lng:WGS.lng,
-    altitude:numOrNull("alt"), horizontalAccuracy:numOrNull("hacc"), verticalAccuracy:numOrNull("vacc")};
+    altitude:numOrNull("alt"), horizontalAccuracy:numOrNull("hacc"), verticalAccuracy:numOrNull("vacc"),
+    jitterMeters:numOrNull("jit"), accJitter:numOrNull("ajit")};
   fetch("/set?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
     .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("已保存 ✓ 记得关开定位生效"); } else { toast("保存失败 "+r.status); } })
     .catch(function(){ toast("网络错误"); });
@@ -1390,6 +1415,8 @@ function load(){
     $("alt").value=(d.altitude!==undefined?d.altitude:"");
     $("hacc").value=(d.horizontalAccuracy!==undefined?d.horizontalAccuracy:39);
     $("vacc").value=(d.verticalAccuracy!==undefined?d.verticalAccuracy:1000);
+    $("jit").value=(d.jitterMeters!==undefined?d.jitterMeters:3);
+    $("ajit").value=(d.accJitter!==undefined?d.accJitter:2);
 
     var amapVec=L.tileLayer("https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=1&style=7",{subdomains:"1234",maxZoom:18,attribution:"高德地图"});
     amapVec.datum="gcj";
