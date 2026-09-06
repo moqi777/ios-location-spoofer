@@ -157,6 +157,7 @@ location-picker/admin-page.js        # 管理台页面
 location-picker/worker/              # Cloudflare Worker 版（免 VPS）
 location-picker/cloudflare-webui/    # 网页后台版
 location-picker/RAILWAY.md           # Railway 部署指南
+location-picker/docs/                # 踩过的坑与实测结论（做之前先翻一下）
 ```
 
 ---
