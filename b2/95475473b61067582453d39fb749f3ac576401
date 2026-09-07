@@ -1,0 +1,25 @@
+location-picker/help-page.js
+  s_72ed9353f7f674::t_6fcd6dc2bff3c1 273-277
+location-picker/bundle.js
+  s_72ed9353f7f674::t_a5f0ed2e1ceab6 64
+location-picker/db.js
+  s_72ed9353f7f674::t_a1d26ada2b3024 22-25,27-33
+location-picker/server.js
+  s_72ed9353f7f674::t_45fa4a507b2288 919-939,992-1072
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "b295475473b61067582453d39fb749f3ac576401",
+  "prompts": {},
+  "sessions": {
+    "s_72ed9353f7f674": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8b03ea5-07b3-4a79-a8fc-471a24611481",
+        "model": "claude-opus-5"
+      },
+      "human_author": "moqing <moqing@tsign.cn>"
+    }
+  }
+}
