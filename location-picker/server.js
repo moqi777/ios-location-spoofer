@@ -916,6 +916,27 @@ const PAGE = `<!doctype html>
   .jnote b{color:#5a5a5e}
   .jli{margin:4px 0 0 2px;padding-left:9px;border-left:2px solid #e0e0e5}
   .jeg{color:#a0a0a5}
+  /* 常见问题：从教程页搬过来的。教程页只有没装好的人才看得到（装好会 302 跳走），
+     而这些问题恰恰是装好之后才会遇到——放在那儿等于写给看不到的人。
+     用原生 <details> 折叠：默认全收起不占地方，不需要一行 JS。 */
+  .faq{margin:14px 8px 0;border-top:1px solid #e5e5ea;padding-top:12px}
+  .faq h3{margin:0 0 4px;font-size:14px;color:#8e8e93;font-weight:600}
+  .faq details{border-bottom:1px solid #f0f0f2}
+  .faq details:last-child{border-bottom:0}
+  .faq summary{padding:11px 2px;font-size:14.5px;color:#1c1c1e;cursor:pointer;
+    list-style:none;display:flex;align-items:center;gap:6px}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::before{content:"›";color:#c7c7cc;font-size:19px;line-height:1;
+    transition:transform .15s;flex:0 0 10px}
+  .faq details[open] summary::before{transform:rotate(90deg)}
+  .faq details[open] summary{color:#007aff;font-weight:600}
+  .faq .a{padding:0 2px 12px 18px;font-size:13.5px;line-height:1.75;color:#48484a}
+  .faq .a b{color:#1c1c1e}
+  .faq .a ol{margin:5px 0;padding-left:20px}
+  .faq .a li{margin:4px 0}
+  .faq .a .path{background:#f2f2f7;border-radius:5px;padding:1px 6px;
+    font-size:12.5px;color:#3a3a3c;white-space:nowrap;display:inline-block;margin:1px 0}
+  .faq .a .tip{color:#8e8e93;font-size:12.5px;margin-top:6px}
   .foot{padding:14px 12px 22px;color:#999;font-size:12px;line-height:1.5;text-align:center}
   .mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;
     display:none;align-items:center;justify-content:center;padding:20px}
@@ -968,6 +989,87 @@ __WHOBAR__
   <button id="favlistbtn">我的收藏</button>
 </div>
 <div class="results" id="favs"></div>
+<div class="faq">
+  <h3>常见问题</h3>
+
+  <details>
+    <summary>保存了，手机上的定位没变</summary>
+    <div class="a">按顺序排查，命中率从高到低：
+      <ol>
+        <li>搜地名之后，<b>有没有在地图上点一下放置图钉</b>？搜索只是移动视野，
+          不点地图就等于没选点，保存的还是上一个位置。</li>
+        <li>参数改完之后，<b>有没有点「保存定位」</b>？上面几个输入框只有点了保存才写进去。</li>
+        <li>去 <span class="path">设置 → 隐私与安全性 → 定位服务</span>
+          把总开关<b>关掉再打开</b>。这一步会清掉 iOS 的定位缓存，让新位置立刻生效。</li>
+        <li>小火箭首页的<b>总开关</b>是开着的吗？</li>
+        <li>都做了还是旧的，等一两分钟——手机每隔几十秒才会来取一次新坐标。</li>
+      </ol>
+    </div>
+  </details>
+
+  <details>
+    <summary>晚上睡一觉，早上起来掉回真实位置</summary>
+    <div class="a">
+      iOS 会在手机长时间闲置时把 VPN 断掉，小火箭一断就没人拦截了。
+      打开小火箭的自动重连能解决：
+      <ol>
+        <li>小火箭底部 <span class="path">设置</span> → 找到
+          <span class="path">按需求连接</span></li>
+        <li>打开「<b>按需求连接</b>」这一项（下面的规则保持「连接：任意」）</li>
+        <li>确认「<b>睡眠时断开</b>」是<b>关闭</b>的</li>
+      </ol>
+      <div class="tip">上面那个「始终开启」不用管——那是给企业统一管理的设备用的，
+        普通手机上开了也不一定生效。</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>在户外、走路或坐车时会跳回真实位置</summary>
+    <div class="a">
+      手机判断自己在哪有两个来源：<b>GPS 卫星</b>，和<b>周围 Wi-Fi/基站查表</b>。
+      我们改的是后者，GPS 是硬件改不了。两边打架时，系统信<b>谁报的精度更高</b>。
+      露天时 GPS 能到三五米，所以容易压过来。
+      <ol>
+        <li>把上面的「<b>水平精度</b>」调小（默认已经是 3）。这个数字是在告诉系统
+          「我这个位置误差只有几米」，数字越小越有话语权。</li>
+        <li>把「<b>坐标漂移</b>」「<b>精度漂移</b>」都填 <b>0</b>。漂移会把精度往上抬，
+          反而削弱效果。</li>
+        <li>更管用的一招：<b>关掉常用 App 的「精确位置」</b>——
+          <span class="path">设置 → 隐私与安全性 → 定位服务</span>
+          里逐个进入微信、地图、查找等 App，关掉「<b>精确位置</b>」开关。
+          关掉之后这些 App 不再要求高精度，系统也就没必要把 GPS 拉满，
+          Wi-Fi 查表（也就是我们改的这条）说话的分量会大很多。</li>
+      </ol>
+      <div class="tip">室内、坐着不动的场景最稳定，这也是绝大多数使用场景。</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>原理是什么？会不会被 App 检测到</summary>
+    <div class="a">
+      iPhone 判断自己在哪，除了 GPS 卫星，还要靠周围的 <b>Wi-Fi 热点和基站</b>。
+      后面这条它自己算不出来——手机把扫到的热点列表发给苹果的定位服务器，
+      由服务器回一个坐标。<b>这套方案改的就是这一次回应</b>：
+      在中间把苹果的回应拦下来，把里面的经纬度换成你选的点，再交给系统。
+      <br><br>因为改的是<b>系统拿到的原始数据</b>，而不是去骗某个 App：
+      <ol>
+        <li><b>是 iOS 自己算出来的结果。</b>所有读定位的 App 拿到同一个值，
+          不存在「这个 App 能改那个不行」。</li>
+        <li><b>不越狱、不装插件、不开开发者模式。</b>手机上没有任何被改过的系统文件，
+          越狱检测、插件检测无从触发。</li>
+        <li><b>不是「模拟定位」。</b>iOS 15 起，开发者工具模拟出来的位置会被系统打上
+          <code>isSimulatedBySoftware</code> 标记，App 一查就知道——
+          市面上大部分虚拟定位工具栽的就是这里。我们走的是系统正常的定位流程，
+          这个标记不会被置上。</li>
+      </ol>
+    </div>
+  </details>
+
+  <details>
+    <summary>换手机了，或者重装了小火箭</summary>
+    <div class="a">需要重新配置导入，联系管理员处理。</div>
+  </details>
+</div>
 <div class="foot">重装或换机后需要重新配置导入，请联系管理员处理</div>
 <div class="mask" id="firstmask"><div class="sheet" id="firstsheet"></div></div>
 <div class="toast" id="toast"></div>

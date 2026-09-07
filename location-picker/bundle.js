@@ -61,7 +61,7 @@ function scriptLine(origin, token) {
     "iOS Location Spoofer = type=http-response,pattern=" + PATTERN +
     ",requires-body=1,binary-body-mode=1,max-size=0,timeout=30" +
     ",script-path=" + origin + SCRIPT_PATH +
-    ",argument=mode=response&latitude=37.3349&longitude=-122.00902&horizontalAccuracy=39" +
+    ",argument=mode=response&latitude=37.3349&longitude=-122.00902&horizontalAccuracy=3" +
     "&verticalAccuracy=1000&altitude=530&debug=false&configUrl=" +
     origin + "/loc.json?token=" + token
   );
