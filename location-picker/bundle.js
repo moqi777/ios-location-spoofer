@@ -67,10 +67,24 @@ function scriptLine(origin, token) {
   );
 }
 
+// 版本戳：模块内容一变它就变，用户在小火箭里点开模块就能看到自己拿的是哪一版。
+// 有它才分得清「他没更新」和「他更新了但没生效」——排查时这两种表现一模一样。
+// 取模块里真正会影响行为的三样东西做哈希，脚本本体也算进去（脚本是自动更新的，
+// 但用户报问题时我们想知道他那台到底跑的哪一版）。
+var MODULE_VERSION = (function () {
+  var src = PATTERN + "|" + MITM_HOSTS + "|" + (scriptBody ? scriptBody.length : 0);
+  var h = 5381;
+  for (var i = 0; i < src.length; i += 1) {
+    h = ((h * 33) ^ src.charCodeAt(i)) >>> 0;
+  }
+  return h.toString(16).slice(0, 6);
+})();
+
 function buildModule(origin, token) {
   return [
     "#!name=iOS Location Spoofer",
-    "#!desc=拦截 Apple 定位服务器回应的 GPS 坐标，替换成自定义位置。装在任意配置上都能用。",
+    "#!desc=拦截 Apple 定位服务器回应的 GPS 坐标，替换成自定义位置。装在任意配置上都能用。[版本 " +
+      MODULE_VERSION + "]",
     "",
     "[Script]",
     scriptLine(origin, token),
@@ -101,6 +115,7 @@ function directRule(origin) {
 }
 
 module.exports = {
+  MODULE_VERSION: MODULE_VERSION,
   PATTERN: PATTERN,
   MITM_HOSTS: MITM_HOSTS,
   SCRIPT_PATH: SCRIPT_PATH,

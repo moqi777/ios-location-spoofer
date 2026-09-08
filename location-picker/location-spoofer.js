@@ -1334,7 +1334,24 @@
     return cfg;
   }
 
-  function readRemoteConfigCache(url) {
+  // 这两个年龄回答的是两个不同的问题，别混：
+  //   MAX_AGE  这份缓存还能不能拿来兜底（拉不到远端时用它，总比开天窗强）
+  //   FRESH    这份缓存新不新到可以直接回包、连拉都不用拉
+  // 以前只有前者，于是「保存定位」之后的第一轮 wloc 必定回旧坐标，要等下一轮才对。
+  // 手机闲着的时候一轮就是一到几分钟——这正是用户报的「切过去要等 1~5 分钟」。
+  // 1 小时：这份缓存唯一的用途是「远端拉不到时拿什么顶」。
+  // 原来 5 分钟太短——服务器挂过 5 分钟，所有人的坐标就掉回模块参数里的默认值
+  // （Apple 总部），可用户上一次选的点明明还在手上。Railway 重启是几十秒、
+  // 网络抖动是几分钟，1 小时把现实中的故障都盖住了。
+  // 上限不能再放大：停用是靠 /loc.json 返回 enabled:false 生效的，只在拉得到时
+  // 才起作用。谁把我们的域名 REJECT 掉就会一直吃缓存，兜底多久 = 白嫖窗口多久。
+  // （这道防线本来就软：模块参数里带着坐标，删掉 configUrl 就能脱机自己跑。）
+  var REMOTE_CFG_MAX_AGE_MS = 3600000;
+  // 10 秒：iOS 一轮会并发 6 个 wloc，够这一轮共用同一次拉取；又短到不会让
+  // 下一轮还吃旧值。
+  var REMOTE_CFG_FRESH_MS = 10000;
+
+  function readRemoteConfigCache(url, maxAgeMs) {
     if (!url || typeof $persistentStore === "undefined" || !$persistentStore.read) {
       return null;
     }
@@ -1347,7 +1364,7 @@
       if (!entry || entry.url !== url || !entry.data) {
         return null;
       }
-      if (Date.now() - entry.ts > 300000) {
+      if (Date.now() - entry.ts > (maxAgeMs == null ? REMOTE_CFG_MAX_AGE_MS : maxAgeMs)) {
         return null;
       }
       return entry.data;
@@ -1476,16 +1493,19 @@
       return;
     }
 
-    if (readRemoteConfigCache(configUrl)) {
+    if (readRemoteConfigCache(configUrl, REMOTE_CFG_FRESH_MS)) {
       refreshRemoteConfigCache(configUrl, debug);
       finish();
       return;
     }
 
+    // 缓存过旧（或没有）。cfg 里已经合并过缓存值，所以这里拉失败也不会开天窗，
+    // 只是回到旧坐标——跟改之前的行为一样。有兜底就把超时压短一点。
+    var hasFallback = !!readRemoteConfigCache(configUrl);
     if (debug) {
       console.log("Location spoofer remote config fetching: " + configUrl);
     }
-    fetchRemoteConfig(configUrl, 3000, debug, function (data, err) {
+    fetchRemoteConfig(configUrl, hasFallback ? 2000 : 3000, debug, function (data, err) {
       if (data) {
         writeRemoteConfigCache(configUrl, data);
         cfg = mergeConfig(cfg, data);
@@ -2125,7 +2145,8 @@
     parseArgumentString: parseArgumentString,
     readScriptArguments: readScriptArguments,
     geocodeAddress: geocodeAddress,
-    prepareRequestHeaders: prepareRequestHeaders
+    prepareRequestHeaders: prepareRequestHeaders,
+    loadRuntimeConfig: loadRuntimeConfig
   };
 
   if (typeof module !== "undefined" && module.exports) {

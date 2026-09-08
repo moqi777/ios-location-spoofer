@@ -1513,8 +1513,8 @@ function load(){
     $("alt").value=(d.altitude!==undefined?d.altitude:"");
     $("hacc").value=(d.horizontalAccuracy!==undefined?d.horizontalAccuracy:39);
     $("vacc").value=(d.verticalAccuracy!==undefined?d.verticalAccuracy:1000);
-    $("jit").value=(d.jitterMeters!==undefined?d.jitterMeters:3);
-    $("ajit").value=(d.accJitter!==undefined?d.accJitter:2);
+    $("jit").value=(d.jitterMeters!==undefined?d.jitterMeters:0);
+    $("ajit").value=(d.accJitter!==undefined?d.accJitter:0);
 
     var amapVec=L.tileLayer("https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=1&style=7",{subdomains:"1234",maxZoom:18,attribution:"高德地图"});
     amapVec.datum="gcj";
