@@ -1,0 +1,30 @@
+location-picker/server.js
+  s_72ed9353f7f674::t_71f4418fea21ff 1516-1517
+location-picker/bundle.js
+  s_72ed9353f7f674::t_7866faf005dab6 70-82,86-87,118
+location-picker/location-spoofer.js
+  s_72ed9353f7f674::t_c2b1d6155a3a38 1352-1354,1367,1496,1502-1504,1508
+  s_72ed9353f7f674::t_1465a45cab7663 1342-1349
+  s_72ed9353f7f674::t_5fb4655563b669 1337-1341,1350-1351
+  s_72ed9353f7f674::t_a6e2f77e8a2908 2148-2149
+location-spoofer.js
+  s_72ed9353f7f674::t_a6ca6a075111ae 1337-1341,1350-1354,1367,1496,1502-1504,1508
+  s_72ed9353f7f674::t_1465a45cab7663 1342-1349
+  s_72ed9353f7f674::t_a6e2f77e8a2908 2148-2149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "cf4f57246773e6976bb62b9934dbd9c4e2acd8eb",
+  "prompts": {},
+  "sessions": {
+    "s_72ed9353f7f674": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8b03ea5-07b3-4a79-a8fc-471a24611481",
+        "model": "claude-opus-5"
+      },
+      "human_author": "moqing <moqing@tsign.cn>"
+    }
+  }
+}
